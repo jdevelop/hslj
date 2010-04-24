@@ -24,25 +24,23 @@ login username password =
     where
         login' Nothing = return Nothing
         login' (Just (chal, auth_response)) = do
-            response <- runRequest [makePair1 modeStr "login", 
+            response <- runRequest [makePair "mode" "login", 
                                     makePair "user" username, 
                                     makePair "auth_method" "challenge", 
-                                    makePair2 "auth_challenge" chal, 
-                                    makePair2 "auth_response" auth_response]
+                                    makePairBSValue "auth_challenge" chal, 
+                                    makePairBSValue "auth_response" auth_response]
             return $ findPair "success" response >>= createSession chal auth_response
         createSession chal auth_response status  | status == statusOK = Just (Authenticated chal auth_response)
                                                  | otherwise          = Nothing
             
 
-modeStr = BStr.pack "mode"
 statusOK = BStr.pack "OK"
 
 prepareChallenge :: String -> IO (Maybe (BStr.ByteString, BStr.ByteString))
 prepareChallenge password = do
-    response <- runRequest [Pair modeStr getChallengeStr]
+    response <- runRequest [makePair "mode" "getchallenge"]
     return . fmap (result) $ findPair "challenge" response
     where
-        getChallengeStr = BStr.pack "getchallenge"
         md5Pass = BStrL.pack . show . md5 $ BStrL.pack password -- have no idea how to force MD5Digest to be converted to lazy bytestring
         repack = BStrL.fromChunks . (:[])
         hashcode chal = md5 $ BStrL.concat [chal, md5Pass]

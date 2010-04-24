@@ -1,8 +1,8 @@
 module LiveJournal.Transport(
     Pair(..),
     makePair,
-    makePair1,
-    makePair2,
+    makePairBSName,
+    makePairBSValue,
     runRequest
 )
 where
@@ -19,13 +19,13 @@ makePair strName strValue = Pair strName' strValue'
         strName' = BStr.pack strName
         strValue' = BStr.pack strValue
 
-makePair1 :: ByteString -> String -> Pair
-makePair1 strName strValue = Pair strName strValue'
+makePairBSName :: ByteString -> String -> Pair
+makePairBSName strName strValue = Pair strName strValue'
     where
         strValue' = BStr.pack strValue
 
-makePair2 :: String -> ByteString -> Pair
-makePair2 strName strValue = Pair strName' strValue
+makePairBSValue :: String -> ByteString -> Pair
+makePairBSValue strName strValue = Pair strName' strValue
     where
         strName' = BStr.pack strName
 
