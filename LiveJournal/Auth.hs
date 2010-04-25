@@ -1,10 +1,7 @@
 module LiveJournal.Auth (
-    Session(..),
     login
 )
 where 
-
-import Maybe
 
 import LiveJournal.Transport
 import Data.ByteString.Char8 as BStr
@@ -12,7 +9,6 @@ import Data.ByteString.Lazy.Char8 as BStrL
 import Data.Digest.Pure.MD5
 import Prelude as P
 
-data Session = Anonymous | Authenticated { auth_challenge, auth_response :: BStr.ByteString }
 
 instance Show Session where
     show Anonymous = "Anonymous session"
@@ -46,9 +42,3 @@ prepareChallenge password = do
         hashcode chal = md5 $ BStrL.concat [chal, md5Pass]
         result chal = (chal, BStr.pack . show . hashcode . repack $ chal )
     
-
-findPair :: String -> [Pair] -> Maybe BStr.ByteString
-findPair _ [] = Nothing
-findPair pName val = listToMaybe . P.map value . P.filter ( ( == pName') . name ) $ val
-    where
-        pName' = BStr.pack pName
