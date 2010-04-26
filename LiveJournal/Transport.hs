@@ -5,8 +5,7 @@ module LiveJournal.Transport(
     makePairBSName,
     makePairBSValue,
     runRequest,
-    runRequestSession,
-    findPair
+    runRequestSession
 )
 where
 
@@ -14,10 +13,15 @@ import Maybe
 import Prelude as P
 import Network.Curl
 import Data.ByteString.Char8 as BStr
+import LiveJournal.Error
 
 data Pair = Pair { name, value :: ByteString }
 
 data Session = Anonymous | Authenticated { auth_challenge, auth_response :: BStr.ByteString }
+
+instance Show Session where
+    show Anonymous = "Anonymous session"
+    show (Authenticated auth_challenge auth_response) = BStr.unpack auth_challenge ++ " :: " ++ BStr.unpack auth_response
 
 makePair :: String -> String -> Pair
 makePair strName strValue = Pair strName' strValue'
@@ -66,8 +70,3 @@ parseResponse = buildPairs . clearEmpty
         buildPairs (name:value:pairs) = Pair name value:buildPairs pairs
         buildPairs _ = []
 
-findPair :: String -> [Pair] -> Maybe BStr.ByteString
-findPair _ [] = Nothing
-findPair pName val = listToMaybe . P.map value . P.filter ( ( == pName') . name ) $ val
-    where
-        pName' = BStr.pack pName

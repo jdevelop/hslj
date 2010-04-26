@@ -3,35 +3,31 @@ module LiveJournal.Auth (
 )
 where 
 
+import LiveJournal.Common
+import LiveJournal.Error
 import LiveJournal.Transport
 import Data.ByteString.Char8 as BStr
 import Data.ByteString.Lazy.Char8 as BStrL
 import Data.Digest.Pure.MD5
 import Prelude as P
 
-
-instance Show Session where
-    show Anonymous = "Anonymous session"
-    show (Authenticated auth_challenge auth_response) = BStr.unpack auth_challenge ++ " :: " ++ BStr.unpack auth_response
-
-login :: String -> String -> IO ( Maybe Session )
-login username password = 
-    prepareChallenge password >>= login'
+login :: String -> String -> IO ( Result Session )
+login username password = do
+    response <- prepareChallenge password
+    login' response
     where
-        login' Nothing = return Nothing
+        login' Nothing = return $ Right NoChallenge
         login' (Just (chal, auth_response)) = do
             response <- runRequest [makePair "mode" "login", 
                                     makePair "user" username, 
                                     makePair "auth_method" "challenge", 
                                     makePairBSValue "auth_challenge" chal, 
                                     makePairBSValue "auth_response" auth_response]
-            return $ findPair "success" response >>= createSession chal auth_response
-        createSession chal auth_response status  | status == statusOK = Just (Authenticated chal auth_response)
-                                                 | otherwise          = Nothing
+            return $ createSession chal auth_response ( responseStatus response ) response
+        createSession _ _ Nothing _ = Right WrongResponseFormat
+        createSession chal auth_response (Just status) response | status == statusOK = Left (Authenticated chal auth_response)
+                                                                | otherwise          = Right $ getErrorMsgFromResponse response
             
-
-statusOK = BStr.pack "OK"
-
 prepareChallenge :: String -> IO (Maybe (BStr.ByteString, BStr.ByteString))
 prepareChallenge password = do
     response <- runRequest [makePair "mode" "getchallenge"]
