@@ -15,16 +15,11 @@ data LastUpdate = LastUpdate { lastUpdateStr :: String, hasNew, interval :: Int 
 lastUpdate :: Session -> String -> String -> Int -> IO (Result LastUpdate)
 lastUpdate Anonymous _ _ _ = return $ Right AuthRequired
 lastUpdate session username lastupdate mask = do
-    response <- runRequestSession session [ 
-                                makePair "mode" "checkfriends",
-                                makePair "user" username,
-                                makePair "lastupdate" lastupdate,
-                                makePair "mask" (show mask)]
-    return $ lastUpdateSuccess response (responseStatus response)
+    makeLJCall session [makePair "mode" "checkfriends",
+                        makePair "user" username,
+                        makePair "lastupdate" lastupdate,
+                        makePair "mask" (show mask)] createLastUpdate
     where
-        lastUpdateSuccess _ Nothing = Right WrongResponseFormat
-        lastUpdateSuccess response (Just state) | state == statusOk = createLastUpdate response
-                                                | otherwise = Right $ getErrorMsgFromResponse response
         createLastUpdate  = hasLastUpdate . newLastUpdate
         newLastUpdate response = do
             lastUpdateStr <- findPair "lastupdate" response

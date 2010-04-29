@@ -25,7 +25,7 @@ login username password = do
                                     makePairBSValue "auth_response" auth_response]
             return $ createSession chal auth_response ( responseStatus response ) response
         createSession _ _ Nothing _ = Right WrongResponseFormat
-        createSession chal auth_response (Just status) response | status == statusOK = Left (Authenticated chal auth_response)
+        createSession chal auth_response (Just status) response | status == statusOk = Left (Authenticated chal auth_response)
                                                                 | otherwise          = Right $ getErrorMsgFromResponse response
             
 prepareChallenge :: String -> IO (Maybe (BStr.ByteString, BStr.ByteString))

@@ -8,6 +8,8 @@ import Prelude as P
 
 type Result a = Either a Error
 
+type LJResponseHandler a = [Pair] -> Result a
+
 statusOk = BStr.pack "OK"
 
 findPair :: String -> [Pair] -> Maybe BStr.ByteString
@@ -26,5 +28,10 @@ getErrorMsgFromResponse response = errorState errMsg
 responseStatus :: [Pair] -> Maybe BStr.ByteString
 responseStatus = findPair "success"
 
-statusOk :: ByteString
-statusOK = BStr.pack "OK"
+makeLJCall :: Session -> [Pair] -> LJResponseHandler a -> IO (Result a)
+makeLJCall session params handler = do
+    fmap processResponse $ runRequestSession session params
+    where
+        processResponse response | responseStatus response == Nothing = Right WrongResponseFormat
+                                 | responseStatus response == (Just statusOk) = handler response
+                                 | otherwise = Right $ getErrorMsgFromResponse response
