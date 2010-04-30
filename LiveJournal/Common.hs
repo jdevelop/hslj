@@ -28,6 +28,7 @@ responseStatus :: [Pair] -> Maybe BStr.ByteString
 responseStatus = findPair "success"
 
 makeLJCall :: Session -> [Pair] -> LJResponseHandler a -> IO (Result a)
+makeLJCall Anonymous _ _ = return $ Left AuthRequired
 makeLJCall session params handler = do
     fmap processResponse $ runRequestSession session params
     where
