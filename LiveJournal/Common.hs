@@ -6,7 +6,7 @@ import LiveJournal.Transport
 import Data.Maybe
 import Prelude as P
 
-type Result a = Either a Error
+type Result a = Either Error a
 
 type LJResponseHandler a = [Pair] -> Result a
 
@@ -31,6 +31,6 @@ makeLJCall :: Session -> [Pair] -> LJResponseHandler a -> IO (Result a)
 makeLJCall session params handler = do
     fmap processResponse $ runRequestSession session params
     where
-        processResponse response | responseStatus response == Nothing = Right WrongResponseFormat
+        processResponse response | responseStatus response == Nothing = Left WrongResponseFormat
                                  | responseStatus response == (Just statusOk) = handler response
-                                 | otherwise = Right $ getErrorMsgFromResponse response
+                                 | otherwise = Left $ getErrorMsgFromResponse response

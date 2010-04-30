@@ -13,7 +13,7 @@ import Data.ByteString.Char8 as BStr
 data LastUpdate = LastUpdate { lastUpdateStr :: String, hasNew, interval :: Int }
 
 lastUpdate :: Session -> String -> String -> Int -> IO (Result LastUpdate)
-lastUpdate Anonymous _ _ _ = return $ Right AuthRequired
+lastUpdate Anonymous _ _ _ = return $ Left AuthRequired
 lastUpdate session username lastupdate mask = do
     makeLJCall session [makePair "mode" "checkfriends",
                         makePair "user" username,
@@ -26,7 +26,7 @@ lastUpdate session username lastupdate mask = do
             new <- findPair "new" response
             interval <- findPair "interval" response
             return $ LastUpdate (BStr.unpack lastUpdateStr) (readBSInt new) (readBSInt interval)
-        hasLastUpdate Nothing = Right WrongResponseFormat
-        hasLastUpdate (Just lastUpdate) = Left lastUpdate
+        hasLastUpdate Nothing = Left WrongResponseFormat
+        hasLastUpdate (Just lastUpdate) = Right lastUpdate
         readBSInt = read . BStr.unpack
 
