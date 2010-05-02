@@ -5,14 +5,14 @@ import LiveJournal.Transport
 import LiveJournal.Common
 import LiveJournal.Error
 import Data.URLEncoded
-import Text.Regex.Posix
+import Text.Regex.PCRE
 import Prelude as P
 
 voidHandler :: LJResponseHandler ()
 voidHandler = \_ -> Right ()
 
 buildUserList :: [Pair] -> [String]
-buildUserList = P.map ( BStr.unpack . value ) . P.filter ( (=~ "cmd_line_\\d+") . name ) 
+buildUserList = P.map ( BStr.unpack . value ) . P.filter ( ( =~ "cmd_line_\\d+$" ) . name ) 
 
 runConsoleCommand :: Session -> String -> String -> LJResponseHandler a -> IO (Result a)
 runConsoleCommand session owner command handler = do
@@ -53,7 +53,7 @@ friend_mgmt :: Session -> String -> String -> String -> String -> String -> Stri
 friend_mgmt session cmd owner username group fgcolor bgcolor handler = do
     runConsoleCommand session owner cmdString handler
     where
-        cmdString = cmd ++ (P.concatMap prependSpace $ [username,group] ++ optArgs)
+        cmdString = "friend " ++ cmd ++ (P.concatMap prependSpace $ [username,group] ++ optArgs)
         optArgs = P.map ( makePair' ) . P.filter ( ("" /= ) . snd ) $ P.zip ["fgcolor","bgcolor"] [fgcolor,bgcolor]
         makePair' (name,value) = name ++ "='" ++ value ++ "'"
         prependSpace arg | arg == "" = ""

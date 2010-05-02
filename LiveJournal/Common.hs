@@ -12,10 +12,6 @@ type LJResponseHandler a = [Pair] -> Result a
 
 statusOk = BStr.pack "OK"
 
-findPair :: String -> [Pair] -> Maybe BStr.ByteString
-findPair pName = listToMaybe . P.map value . P.filter ( ( == pName') . name )
-    where
-        pName' = BStr.pack pName
 
 getErrorMsgFromResponse :: [Pair] -> Error
 getErrorMsgFromResponse response = errorState errMsg
