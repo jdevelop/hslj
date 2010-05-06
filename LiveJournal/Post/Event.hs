@@ -36,10 +36,9 @@ transformers = [ mbEventPair "event" event,
                  --TODO implement parsing of metadata here
                  ]
     where
-        trLineendings = Just . makePair "lineendings" . fixLE . lineendings
-        fixLE = (leMapping !) . fromEnum
-        mbSecurity = fmap ( makePair "security" . fixSEC ) . security
-        fixSEC = (secMapping !) . fromEnum
+        trLineendings = Just . makePair "lineendings" . fix leMapping . lineendings
+        mbSecurity = fmap ( makePair "security" . fix secMapping) . security
+        fix arr = (arr !) . fromEnum
 
 mbEventPair :: String -> (Event -> Maybe BStr.ByteString) -> Event -> Maybe Pair
 mbEventPair name f post = fmap (makePairBSValue name) $ f post
