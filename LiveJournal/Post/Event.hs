@@ -6,11 +6,11 @@ import Data.Maybe
 import Data.Array
 import LiveJournal.Pair
 
-data LineEndings = UNIX | PC | MAC deriving Enum
-leMapping = listArray (1,3) ["unix","pc","mac"]
+data LineEndings = UNIX | PC | MAC deriving (Enum,Bounded)
+leMapping = listArray (0,2) ["unix","pc","mac"]
 
-data Security = PIBLIC  | PRIVATE | USEMASK deriving Enum
-secMapping = listArray (1,3) ["public","private","usemask"]
+data Security = PUBLIC  | PRIVATE | USEMASK deriving (Enum,Bounded)
+secMapping = listArray (0,2) ["public","private","usemask"]
 
 data Property = Property { name, value :: ByteString }
 
@@ -36,9 +36,9 @@ transformers = [ mbEventPair "event" event,
                  --TODO implement parsing of metadata here
                  ]
     where
-        trLineendings = Just . makePair "lineendings" . fix leMapping . lineendings
-        mbSecurity = fmap ( makePair "security" . fix secMapping) . security
-        fix arr = (arr !) . fromEnum
+        trLineendings = Just . makePair "lineendings" . enum2String leMapping . lineendings
+        mbSecurity = fmap ( makePair "security" . enum2String secMapping) . security
+        enum2String arr = (arr !) . fromEnum
 
 mbEventPair :: String -> (Event -> Maybe BStr.ByteString) -> Event -> Maybe Pair
 mbEventPair name f post = fmap (makePairBSValue name) $ f post
