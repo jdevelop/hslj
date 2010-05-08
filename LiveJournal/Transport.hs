@@ -1,10 +1,5 @@
 module LiveJournal.Transport(
-    Pair(..),
     Session(..),
-    makePair,
-    findPair,
-    makePairBSName,
-    makePairBSValue,
     runRequest,
     runRequestSession,
     prepareChallenge
@@ -18,33 +13,8 @@ import Data.ByteString.Char8 as BStr
 import Data.ByteString.Lazy.Char8 as BStrL
 import Data.Digest.Pure.MD5
 import LiveJournal.Error
-
-data Pair = Pair { name, value :: BStr.ByteString }
-
-data Session = Anonymous | Authenticated { password :: String }
-
-instance Show Session where
-    show Anonymous = "Anonymous session"
-    show (Authenticated password) = "Authenticated by password"
-
-makePair :: String -> String -> Pair
-makePair strName strValue = Pair strName' strValue'
-    where
-        strName' = BStr.pack strName
-        strValue' = BStr.pack strValue
-
-makePairBSName :: BStr.ByteString -> String -> Pair
-makePairBSName strName strValue = Pair strName strValue'
-    where
-        strValue' = BStr.pack strValue
-
-makePairBSValue :: String -> BStr.ByteString -> Pair
-makePairBSValue strName strValue = Pair strName' strValue
-    where
-        strName' = BStr.pack strName
-
-instance Show Pair where
-    show (Pair name' value') = BStr.unpack name' ++ "=" ++ BStr.unpack value'
+import LiveJournal.Session
+import LiveJournal.Pair
 
 runRequest :: [Pair] -> IO ( [Pair] )
 runRequest input = do
@@ -89,8 +59,3 @@ parseResponse = buildPairs . clearEmpty
         clearEmpty = P.dropWhile ( == BStr.empty ) . BStr.lines
         buildPairs (name:value:pairs) = Pair name value:buildPairs pairs
         buildPairs _ = []
-
-findPair :: String -> [Pair] -> Maybe BStr.ByteString
-findPair pName = listToMaybe . P.map value . P.filter ( ( == pName') . name )
-    where
-        pName' = BStr.pack pName

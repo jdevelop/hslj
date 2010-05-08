@@ -1,6 +1,7 @@
 module LiveJournal.ConsoleCmd where
 
-import LiveJournal.Transport
+import LiveJournal.Pair
+import LiveJournal.Session
 import LiveJournal.Common
 import LiveJournal.Error
 

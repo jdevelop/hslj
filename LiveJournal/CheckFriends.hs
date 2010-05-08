@@ -7,7 +7,7 @@ where
 import LiveJournal.Common
 import LiveJournal.Transport
 import LiveJournal.Error
-import LiveJournal.Auth
+import LiveJournal.Pair
 import Data.ByteString.Char8 as BStr
 
 data LastUpdate = LastUpdate { lastUpdateStr :: String, hasNew, interval :: Int }

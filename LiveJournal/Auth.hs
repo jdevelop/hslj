@@ -5,6 +5,8 @@ where
 
 import LiveJournal.Common
 import LiveJournal.Error
+import LiveJournal.Pair
+import LiveJournal.Session
 import LiveJournal.Transport
 
 login :: String -> String -> IO ( Result Session )

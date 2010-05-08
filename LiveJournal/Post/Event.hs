@@ -4,7 +4,7 @@ import Data.ByteString.UTF8 as BStr
 import Data.Word
 import Data.Maybe
 import Data.Array
-import LiveJournal.Transport
+import LiveJournal.Pair
 
 data LineEndings = UNIX | PC | MAC deriving Enum
 leMapping = listArray (1,3) ["unix","pc","mac"]
@@ -18,7 +18,7 @@ data Event = Event { event, subject :: Maybe BStr.ByteString,
                      lineendings :: LineEndings,
                      security :: Maybe Security,
                      allowmask :: Word32,
-                     year, mon, day, hour, min :: Int,
+                     year, mon, day, hour, minute :: Int,
                      metadata :: Maybe [Property] }
 
 type Entry2PairTransformer = Event -> Maybe Pair
@@ -32,7 +32,7 @@ transformers = [ mbEventPair "event" event,
                  makeShowableEventPair "mon" mon,
                  makeShowableEventPair "day" day,
                  makeShowableEventPair "hour" hour,
-                 makeShowableEventPair "min" LiveJournal.Post.Event.min
+                 makeShowableEventPair "min" minute
                  --TODO implement parsing of metadata here
                  ]
     where

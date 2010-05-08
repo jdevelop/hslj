@@ -1,19 +1,20 @@
 module LiveJournal.Common where
 
 import Data.ByteString.Char8 as BStr
+import LiveJournal.Pair
 import LiveJournal.Error
+import LiveJournal.Session
 import LiveJournal.Transport
 import Data.Maybe
 import Prelude as P
 
-type Result a = Either Error a
+type Result a = Either LJError a
 
 type LJResponseHandler a = [Pair] -> Result a
 
 statusOk = BStr.pack "OK"
 
-
-getErrorMsgFromResponse :: [Pair] -> Error
+getErrorMsgFromResponse :: [Pair] -> LJError
 getErrorMsgFromResponse response = errorState errMsg
     where
         errMsg = findPair "errmsg" response
