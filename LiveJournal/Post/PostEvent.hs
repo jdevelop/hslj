@@ -3,12 +3,20 @@ module LiveJournal.Post.PostEvent where
 import LiveJournal.Post.Event
 import LiveJournal.Common
 import LiveJournal.Session
-import LiveJournal.Pair
+import LiveJournal.Error
+import LiveJournal.Pair as P
+import Data.ByteString.Char8 as BStr
 
-postEntry :: Session -> String -> Event -> IO (Result ())
+postEntry :: Session -> String -> Event -> IO (Result (String))
 postEntry session username post = do
-    makeLJCall session pairs (\_ -> Right ())
+    makeLJCall session pairs extractEntryURL
     where
-        pairs = makePair "mode" "postevent" : 
-                makePair "user" username : 
+        pairs = P.makePair "mode" "postevent" : 
+                P.makePair "user" username : 
                 event2pairs post
+
+extractEntryURL :: [Pair] -> Result String
+extractEntryURL  = extractEntryURL' . P.findPair "url"
+    where
+        extractEntryURL' Nothing = Left WrongResponseFormat
+        extractEntryURL' (Just url) = Right . BStr.unpack $ url
