@@ -2,7 +2,7 @@
 -- options, see
 -- http://www.haskell.org/cabal/release/cabal-latest/doc/users-guide/authors.html#pkg-descr.
 -- The name of the package.
-Name:                LiveJournal
+Name:                livejournal
 
 -- The package version. See the Haskell package versioning policy
 -- (http://www.haskell.org/haskellwiki/Package_versioning_policy) for
@@ -40,7 +40,7 @@ Build-type:          Simple
 
 -- Extra files to be distributed with the package, such as examples or
 -- a README.
--- Extra-source-files:  
+Extra-source-files:  README
 
 -- Constraint on the version of Cabal needed to build this package.
 Cabal-version:       >=1.2
