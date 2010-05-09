@@ -1,4 +1,10 @@
-module LiveJournal.Post.Event where
+module LiveJournal.Post.Event (
+    LineEndings(..),
+    Security(..),
+    Event(..),
+    Property(..),
+    event2pairs
+) where
 
 import Data.Word
 import Data.Maybe
