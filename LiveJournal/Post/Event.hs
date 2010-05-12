@@ -1,6 +1,8 @@
 module LiveJournal.Post.Event (
     LineEndings(..),
+    leMapping,
     Security(..),
+    secMapping,
     Event(..),
     Property(..),
     event2pairs

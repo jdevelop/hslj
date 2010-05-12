@@ -27,8 +27,9 @@ responseStatus = findPair "success"
 makeLJCall :: Session -> [Pair] -> LJResponseHandler a -> IO (Result a)
 makeLJCall Anonymous _ _ = return $ Left AuthRequired
 makeLJCall session params handler = do
-    fmap processResponse $ runRequestSession session params
+    fmap processResponse $ runRequestSession session params'
     where
+        params' = makePair "ver" "1" : params
         processResponse response | responseStatus response == Nothing = Left WrongResponseFormat
                                  | responseStatus response == (Just statusOk) = handler response
                                  | otherwise = Left $ getErrorMsgFromResponse response
