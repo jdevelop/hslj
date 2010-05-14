@@ -1,8 +1,6 @@
 module LiveJournal.Post.Event (
     LineEndings(..),
-    leMapping,
     Security(..),
-    secMapping,
     Event(..),
     Property(..),
     event2pairs
@@ -13,16 +11,7 @@ import Data.Maybe
 import Data.Array
 import LiveJournal.Pair
 import Data.DateTime
-
-data LineEndings = UNIX | PC | MAC deriving (Enum,Bounded,Eq,Ord,Ix)
-leMapping :: Array LineEndings String
-leMapping = listArray (minBound,maxBound) ["unix","pc","mac"]
-
-data Security = PUBLIC  | PRIVATE | USEMASK deriving (Enum,Bounded,Eq,Ord,Ix)
-secMapping :: Array Security String
-secMapping = listArray (minBound,maxBound) ["public","private","usemask"]
-
-data Property = Property { name, value :: String }
+import LiveJournal.Post.EventProps
 
 data Event = Event { event, subject :: Maybe String, 
                      lineendings :: LineEndings,
@@ -42,8 +31,8 @@ transformers = [ mbEventPair "event" event ,
                  --TODO implement parsing of metadata here
                  datePairs ]
     where
-        trLineendings = (:[]) . Just . makePair "lineendings" . (leMapping !) . lineendings
-        mbSecurity = (:[]) . fmap ( makePair "security" . (secMapping !)) . security
+        trLineendings = (:[]) . Just . makePair "lineendings" . leToStr . lineendings
+        mbSecurity = (:[]) . fmap ( makePair "security" . secToStr ) . security
 
 mbEventPair :: String -> (Event -> Maybe String) -> Event -> [Maybe Pair]
 mbEventPair name f post = (:[]) . fmap (makePair name) $ f post
