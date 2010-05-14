@@ -18,6 +18,10 @@ leMapping = listArray (minBound,maxBound) ["unix","pc","mac"]
 leToStr :: LineEndings -> String
 leToStr = (leMapping !)
 
+instance Show LineEndings 
+    where
+        show = leToStr
+
 strToLE :: String -> Maybe LineEndings
 strToLE name = listToMaybe $ foldr (findPair name) [] pairs
     where
@@ -29,6 +33,10 @@ secMapping = listArray (minBound,maxBound) ["public","private","usemask"]
 
 secToStr :: Security -> String
 secToStr = (secMapping !)
+
+instance Show Security
+    where
+        show = secToStr
 
 strToSec :: String -> Maybe Security
 strToSec name = listToMaybe $ foldr (findPair name) [] pairs

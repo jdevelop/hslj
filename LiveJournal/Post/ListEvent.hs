@@ -43,7 +43,19 @@ data ListEvent = ListEvent { anum, event, itemid, url, subject :: String,
 
 instance Show ListEvent 
     where
-        show evt = printf "[itemid=%s, anum=%s, url=%s, posted='%s'] \n%s\n" (itemid evt) (anum evt) (url evt) (formatDateTime "%Y-%m-%d %T" (eventtime evt)) (event evt)
+        show ( ListEvent {  anum = anum', event = event', 
+                        itemid = itemid', url = url', 
+                        subject = subject',
+                        eventtime = eventtime',
+                        security = security',
+                        allowmask = allowmask',
+                        poster = poster'
+                        } ) = printf "[itemid=%s, anum=%s, url=%s, eventtime='%s', security=%s, allowmask=%d]\n<%s> : %s\n\n%s\n" 
+                            itemid' anum' url' formattedDate (show security') allowmask'' (show poster') subject' event'
+            where
+                allowmask'' | allowmask' == Nothing = 0
+                            | otherwise = fromJust allowmask'
+                formattedDate = formatDateTime "%Y-%m-%d %T" eventtime'
 
 listEvents :: Session -> String -> Maybe Int -> Bool -> Bool -> SelectType -> LineEndings -> Maybe String -> IO (Result [ListEvent])
 listEvents session username truncate preferSubject noProps selectType lineEnding journal = do
