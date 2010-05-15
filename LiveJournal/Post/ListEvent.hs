@@ -172,7 +172,7 @@ parseResponse pairs = result
                 eventtime = fromJust $ P.head [val | val <- [parseDateTime "%Y-%m-%d %T" value, Just (fromSeconds 0)], val /= Nothing]
             }
         updateListEvent "security" value evt | security' == Nothing = evt
-                                              | otherwise = evt { security = fromJust security' }
+                                             | otherwise = evt { security = fromJust security' }
             where
                 security' = strToSec value
         updateListEvent "allowmask" value evt = evt { allowmask = Just ( read value ) }
