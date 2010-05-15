@@ -48,3 +48,6 @@ findPair name (idx,value) acc | name == value = [idx]
                          | otherwise = acc
 
 data Property = Property { name, value :: String }
+instance Show Property
+    where
+        show (Property { name = name', value = value' }) = name' ++ "::" ++ value'
