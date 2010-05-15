@@ -58,7 +58,8 @@ Library
                        haskell98, mtl >= 1.1, 
                        datetime >= 0.2,
                        array >= 0.2,
-                       containers >= 0.2
+                       containers >= 0.2,
+                       utf8-string >=0.3
   
   -- Modules not exported by this package.
   -- Other-modules:       

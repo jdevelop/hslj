@@ -10,6 +10,7 @@ import Maybe
 import Prelude as P
 import Network.Curl
 import Data.ByteString.Char8 as BStr
+import Data.ByteString.UTF8 as BStrU
 import Data.ByteString.Lazy.Char8 as BStrL
 import Data.Digest.Pure.MD5
 import LiveJournal.Error
@@ -53,7 +54,7 @@ prepareChallenge password = do
 extractResponse :: CurlResponse_ [(String,String)] BStr.ByteString -> BStr.ByteString
 extractResponse = respBody
 
-parseResponse :: BStr.ByteString -> [Pair]
+parseResponse :: BStrU.ByteString -> [Pair]
 parseResponse = buildPairs . clearEmpty
     where
         clearEmpty = P.dropWhile ( == BStr.empty ) . BStr.lines
