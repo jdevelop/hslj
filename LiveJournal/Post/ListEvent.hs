@@ -6,7 +6,7 @@ module LiveJournal.Post.ListEvent (
 )
 where
 
-import Data.ByteString.Char8 as BStr
+import Data.ByteString.UTF8 as BStr
 import Text.ParserCombinators.ReadP
 import LiveJournal.Pair as PA
 import LiveJournal.Session
@@ -18,6 +18,8 @@ import Data.Word
 import Text.Printf
 import Prelude as P
 import Data.Map as M
+import Codec.Binary.Url as U
+import Data.Char.UTF8 as C
 
 data PairDescriptor = EventDescriptor { evtId :: Int, evtPropName, evtPropValue :: String} | 
                       PropertyDescriptor { propId :: Int, propName, propValue :: String }
@@ -111,10 +113,10 @@ mbMakePairShowable :: ( Show a ) => String -> Maybe a -> [Pair]
 mbMakePairShowable name = maybeToList . fmap ( makePair name . show )
 
 parsePair :: Pair -> Maybe PairDescriptor
-parsePair (Pair { PA.name=name', PA.value=value' }) = fmap (makeTriple) $ parseParamName $ BStr.unpack name'
+parsePair (Pair { PA.name=name', PA.value=value' }) = fmap (makeTriple) $ parseParamName $ BStr.toString name'
     where
-        makeTriple evt@(EventDescriptor _ _ _) = evt { evtPropValue = BStr.unpack value' }
-        makeTriple evt@(PropertyDescriptor _ _ _) = evt { propValue = BStr.unpack value' }
+        makeTriple evt@(EventDescriptor _ _ _) = evt { evtPropValue = BStr.toString value' }
+        makeTriple evt@(PropertyDescriptor _ _ _) = evt { propValue = BStr.toString value' }
 
 parseParamName :: String -> Maybe PairDescriptor
 parseParamName = makeDescriptor . readP_to_S ( eventPropertyParser +++ propertyParser )
@@ -165,7 +167,10 @@ parseResponse pairs = result
         updateProperty "itemid" val (idx, property) = (read val, property )
         updateListEvent :: String -> String -> ListEvent -> ListEvent
         updateListEvent "anum" value evt = evt { anum = value }
-        updateListEvent "event" value evt = evt { event = value } -- TODO - decode it
+        updateListEvent "event" value evt = evt { event = decodeBody ( U.decode value ) } -- TODO - decode it
+            where
+                decodeBody Nothing = value
+                decodeBody (Just encWords) = fst $ C.decode encWords
         updateListEvent "itemid" value evt = evt { itemid = value }
         updateListEvent "url" value evt = evt { url = value }
         updateListEvent "eventtime" value evt = evt { 

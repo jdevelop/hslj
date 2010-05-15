@@ -59,7 +59,10 @@ Library
                        datetime >= 0.2,
                        array >= 0.2,
                        containers >= 0.2,
-                       utf8-string >=0.3
+                       utf8-string >=0.3,
+                       dataenc >= 0.13,
+                       hxt >= 8
+
   
   -- Modules not exported by this package.
   -- Other-modules:       
