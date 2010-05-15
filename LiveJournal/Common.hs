@@ -1,6 +1,6 @@
 module LiveJournal.Common where
 
-import Data.ByteString.Char8 as BStr
+import Data.ByteString.UTF8 as BStr
 import LiveJournal.Pair
 import LiveJournal.Error
 import LiveJournal.Session
@@ -12,14 +12,14 @@ type Result a = Either LJError a
 
 type LJResponseHandler a = [Pair] -> Result a
 
-statusOk = BStr.pack "OK"
+statusOk = BStr.fromString "OK"
 
 getErrorMsgFromResponse :: [Pair] -> LJError
 getErrorMsgFromResponse response = errorState errMsg
     where
         errMsg = findPair "errmsg" response
         errorState Nothing = WrongResponseFormat
-        errorState (Just str) = SimpleError (BStr.unpack str)
+        errorState (Just str) = SimpleError (BStr.toString str)
 
 responseStatus :: [Pair] -> Maybe BStr.ByteString
 responseStatus = findPair "success"

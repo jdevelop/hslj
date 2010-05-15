@@ -8,7 +8,7 @@ import LiveJournal.Common
 import LiveJournal.Transport
 import LiveJournal.Error
 import LiveJournal.Pair
-import Data.ByteString.Char8 as BStr
+import Data.ByteString.UTF8 as BStr
 
 data LastUpdate = LastUpdate { lastUpdateStr :: String, hasNew, interval :: Int }
 
@@ -25,8 +25,8 @@ lastUpdate session username lastupdate mask = do
             lastUpdateStr <- findPair "lastupdate" response
             new <- findPair "new" response
             interval <- findPair "interval" response
-            return $ LastUpdate (BStr.unpack lastUpdateStr) (readBSInt new) (readBSInt interval)
+            return $ LastUpdate (BStr.toString lastUpdateStr) (readBSInt new) (readBSInt interval)
         hasLastUpdate Nothing = Left WrongResponseFormat
         hasLastUpdate (Just lastUpdate) = Right lastUpdate
-        readBSInt = read . BStr.unpack
+        readBSInt = read . BStr.toString
 

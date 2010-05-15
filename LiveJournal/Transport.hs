@@ -9,7 +9,6 @@ where
 import Maybe
 import Prelude as P
 import Network.Curl
-import Data.ByteString.Char8 as BStr
 import Data.ByteString.UTF8 as BStrU
 import Data.ByteString.Lazy.Char8 as BStrL
 import Data.Digest.Pure.MD5
@@ -41,7 +40,7 @@ runRequestSession (Authenticated password) pairs = do
                     makePair "auth_method" "challenge":
                     pairs
 
-prepareChallenge :: String -> IO (Maybe (BStr.ByteString, BStr.ByteString))
+prepareChallenge :: String -> IO (Maybe (BStrU.ByteString, BStrU.ByteString))
 prepareChallenge password = do
     response <- runRequest [makePair "mode" "getchallenge"]
     return . fmap (result) $ findPair "challenge" response
@@ -49,14 +48,17 @@ prepareChallenge password = do
         md5Pass = BStrL.pack . show . md5 $ BStrL.pack password -- have no idea how to force MD5Digest to be converted to lazy bytestring
         repack = BStrL.fromChunks . (:[])
         hashcode chal = md5 $ BStrL.concat [chal, md5Pass]
-        result chal = (chal, BStr.pack . show . hashcode . repack $ chal )
+        result chal = (chal, BStrU.fromString . show . hashcode . repack $ chal )
 
-extractResponse :: CurlResponse_ [(String,String)] BStr.ByteString -> BStr.ByteString
+extractResponse :: CurlResponse_ [(String,String)] BStrU.ByteString -> BStrU.ByteString
 extractResponse = respBody
+
+emptyString :: BStrU.ByteString
+emptyString = BStrU.fromString "" 
 
 parseResponse :: BStrU.ByteString -> [Pair]
 parseResponse = buildPairs . clearEmpty
     where
-        clearEmpty = P.dropWhile ( == BStr.empty ) . BStr.lines
+        clearEmpty = P.dropWhile ( == emptyString ) . BStrU.lines
         buildPairs (name:value:pairs) = Pair name value:buildPairs pairs
         buildPairs _ = []
