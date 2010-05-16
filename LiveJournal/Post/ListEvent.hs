@@ -18,7 +18,8 @@ import Data.Word
 import Text.Printf
 import Prelude as P
 import Data.Map as M
-import Network.HTTP.Base
+import Codec.Binary.UTF8.String as SU
+import Codec.Binary.Url as U
 
 data PairDescriptor = EventDescriptor { evtId :: Int, evtPropName, evtPropValue :: String} | 
                       PropertyDescriptor { propId :: Int, propName, propValue :: String }
@@ -166,7 +167,9 @@ parseResponse pairs = result
         updateProperty "itemid" val (idx, property) = (read val, property )
         updateListEvent :: String -> String -> ListEvent -> ListEvent
         updateListEvent "anum" value evt = evt { anum = value }
-        updateListEvent "event" value evt = evt { event = urlDecode value }
+        updateListEvent "event" value evt = evt { event = decodeEvent value }
+            where
+                decodeEvent = maybe "" SU.decode .  U.decode
         updateListEvent "itemid" value evt = evt { itemid = value }
         updateListEvent "url" value evt = evt { url = value }
         updateListEvent "eventtime" value evt = evt { 
