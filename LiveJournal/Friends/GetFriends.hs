@@ -66,7 +66,7 @@ instance Show LJFriend where
 
 listFriends :: Session -> String -> Bool -> Bool -> Bool -> Maybe Int -> IO (Result [LJFriend]) 
 -- TODO include friendof and groups parsing
-listFriends session username incFriendOf incGroups incBirthDs howmuch = do
+listFriends session username incFriendOf incGroups incBirthDs howmuch =
     makeLJCall session request parseResponse
     where
         request = 
@@ -101,7 +101,7 @@ parsePairName = handleParsedPair . TPR.readP_to_S nameParser
             paramId <- munch C.isDigit
             char '_'
             paramName <- munch (\_ -> True)
-            return ((read paramId),paramName)
+            return (read paramId,paramName)
 
 updateFriendRecord :: RecordUpdateF LJFriend
 updateFriendRecord "bg" value rec = rec { bgColor = value }

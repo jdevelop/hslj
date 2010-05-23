@@ -6,7 +6,7 @@ module LiveJournal.Transport(
 )
 where
 
-import Maybe
+import Data.Maybe
 import Prelude as P
 import Network.Curl
 import Data.ByteString.UTF8 as BStrU
@@ -16,7 +16,7 @@ import LiveJournal.Error
 import LiveJournal.Session
 import LiveJournal.Pair
 
-runRequest :: [Pair] -> IO ( [Pair] )
+runRequest :: [Pair] -> IO [Pair]
 runRequest input = do
     curl <- initialize
     fmap ( parseResponse . extractResponse ) $ do_curl_ curl "http://www.livejournal.com/interface/flat" curlOptions
@@ -25,7 +25,7 @@ runRequest input = do
         joinPairs = CurlPostFields . P.map joinPair
         joinPair = show  -- may be some sort of escaping?
 
-runRequestSession :: Session -> [Pair] -> IO ( [Pair] )
+runRequestSession :: Session -> [Pair] -> IO [Pair]
 runRequestSession Anonymous pairs = runRequest pairs
 runRequestSession (Authenticated password) pairs = do 
     challenge <- prepareChallenge password
@@ -43,7 +43,7 @@ runRequestSession (Authenticated password) pairs = do
 prepareChallenge :: String -> IO (Maybe (BStrU.ByteString, BStrU.ByteString))
 prepareChallenge password = do
     response <- runRequest [makePair "mode" "getchallenge"]
-    return . fmap (result) $ findPair "challenge" response
+    return . fmap result $ findPair "challenge" response
     where
         md5Pass = BStrL.pack . show . md5 $ BStrL.pack password -- have no idea how to force MD5Digest to be converted to lazy bytestring
         repack = BStrL.fromChunks . (:[])

@@ -12,16 +12,16 @@ import Data.ByteString.UTF8 as BStr
 import Data.Maybe
 import Prelude as Pr
 
-postEvent :: Session -> String -> Maybe String -> Event -> IO (Result (String))
-postEvent session username target post = do
+postEvent :: Session -> String -> Maybe String -> Event -> IO (Result String)
+postEvent session username target post =
     makeLJCall session pairs extractEntryURL
     where
         pairs = P.makePair "mode" "postevent" : 
                 P.makePair "user" username : 
                 createEvent post target
 
-editEvent :: Session -> String -> Maybe String -> String -> Event -> IO (Result (String))
-editEvent session username target eventid post = do
+editEvent :: Session -> String -> Maybe String -> String -> Event -> IO (Result String)
+editEvent session username target eventid post =
     makeLJCall session pairs extractEntryURL
     where
         pairs = P.makePair "mode" "editevent" :
@@ -39,4 +39,4 @@ targetJr :: Maybe String -> [Pair]
 targetJr = maybeToList . fmap (P.makePair "usejournal")
 
 createEvent :: Event -> Maybe String -> [Pair]
-createEvent post target = Pr.concat [event2pairs post, targetJr target ]
+createEvent post target = event2pairs post ++ targetJr target

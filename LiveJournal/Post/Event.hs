@@ -50,4 +50,4 @@ datePairs = toPairs . toGregorian . date
                                                                makePair "min" $ show minutes ]
 
 event2pairs :: Event -> [Pair]
-event2pairs post = concatMap ( concatMap maybeToList . ( $post ) ) transformers
+event2pairs post = concatMap ( catMaybes . ( $post ) ) transformers

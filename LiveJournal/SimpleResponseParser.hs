@@ -10,7 +10,7 @@ type IxPairParser = Pair -> Maybe IxPair
 type RecordUpdateF r = String -> String -> r -> r
 
 convertPairsToRecords :: RecordUpdateF r -> IxPairParser -> r -> [Pair] -> [r]
-convertPairsToRecords updateRecF parsePairF initRec pairs = M.elems $ foldl ( processWithPairs ) initMap pairs
+convertPairsToRecords updateRecF parsePairF initRec pairs = M.elems $ foldl processWithPairs initMap pairs
     where
         initMap = M.empty
         processWithPairs resMap = maybe resMap (updateMapF resMap) . parsePairF

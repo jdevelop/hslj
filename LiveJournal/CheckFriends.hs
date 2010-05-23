@@ -14,7 +14,7 @@ data LastUpdate = LastUpdate { lastUpdateStr :: String, hasNew, interval :: Int 
 
 lastUpdate :: Session -> String -> String -> Int -> IO (Result LastUpdate)
 lastUpdate Anonymous _ _ _ = return $ Left AuthRequired
-lastUpdate session username lastupdate mask = do
+lastUpdate session username lastupdate mask =
     makeLJCall session [makePair "mode" "checkfriends",
                         makePair "user" username,
                         makePair "lastupdate" lastupdate,

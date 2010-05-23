@@ -61,13 +61,12 @@ instance Show ListEvent
                         } ) = printf "[itemid=%s, anum=%s, url=%s, eventtime='%s', security=%s, allowmask=%d]\n<%s> : %s\n\n%s\nproperties:\n%s\n" 
                             itemid' anum' url' formattedDate (show security') allowmask'' (show poster') subject' event' props
             where
-                allowmask'' = maybe 0 (id) allowmask'
+                allowmask'' = fromMaybe 0 allowmask'
                 formattedDate = formatDateTime "%Y-%m-%d %T" eventtime'
-                props = P.unlines $ P.map (show) properties'
+                props = P.unlines $ P.map show properties'
 
 listEvents :: Session -> String -> Maybe Int -> Bool -> Bool -> SelectType -> LineEndings -> Maybe String -> IO (Result [ListEvent])
-listEvents session username truncate preferSubject noProps selectType lineEnding journal = do
-    
+listEvents session username truncate preferSubject noProps selectType lineEnding journal =
     makeLJCall session pairs (Right . parseResponse)
     where
         pairs = P.concat [ [  makePair "mode" "getevents",
@@ -113,7 +112,7 @@ mbMakePairShowable :: ( Show a ) => String -> Maybe a -> [Pair]
 mbMakePairShowable name = maybeToList . fmap ( makePair name . show )
 
 parsePair :: Pair -> Maybe PairDescriptor
-parsePair (Pair { PA.name=name', PA.value=value' }) = fmap (makeTriple) $ parseParamName $ BStr.toString name'
+parsePair (Pair { PA.name=name', PA.value=value' }) = fmap makeTriple $ parseParamName $ BStr.toString name'
     where
         makeTriple evt@(EventDescriptor _ _ _) = evt { evtPropValue = BStr.toString value' }
         makeTriple evt@(PropertyDescriptor _ _ _) = evt { propValue = BStr.toString value' }
@@ -145,7 +144,7 @@ type EventPropertyTuple = ( EventMap, PropertyMap )
 parseResponse :: [Pair] -> [ListEvent]
 parseResponse pairs = result
     where
-        result = joinEventAndProperties $ P.foldl (makeListEvent) (M.empty, M.empty) pairs
+        result = joinEventAndProperties $ P.foldl makeListEvent (M.empty, M.empty) pairs
         makeListEvent :: EventPropertyTuple -> Pair -> EventPropertyTuple
         makeListEvent resMap = updateMap resMap . parsePair
         updateMap resMap Nothing = resMap
@@ -184,10 +183,10 @@ parseResponse pairs = result
         updateListEvent "poster" value evt = evt { poster = Just value }
         updateListEvent _ _ evt = evt
         joinEventAndProperties :: EventPropertyTuple -> [ListEvent]
-        joinEventAndProperties (evtMap, propsMap) = elems $ fold (findAddProperty) newEvtMap propsMap
+        joinEventAndProperties (evtMap, propsMap) = elems $ fold findAddProperty newEvtMap propsMap
             where
                 -- probably bad idea - convert itemid of post to int value here
-                newEvtMap = fold (\val nMap -> M.insert ( read $ itemid val ) val nMap) M.empty evtMap
+                newEvtMap = fold (\val -> M.insert ( read $ itemid val ) val) M.empty evtMap
                 addProperty :: Property -> ListEvent -> ListEvent
                 addProperty prop evt = evt { properties = prop:properties evt }
                 findAddProperty :: PropertyContainer -> EventMap -> EventMap
