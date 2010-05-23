@@ -15,6 +15,7 @@ import LiveJournal.Post.EventProps as EP
 import Data.DateTime
 import Data.Maybe
 import Data.Word
+import Data.Char as C
 import Text.Printf
 import Prelude as P
 import Data.Map as M
@@ -60,8 +61,7 @@ instance Show ListEvent
                         } ) = printf "[itemid=%s, anum=%s, url=%s, eventtime='%s', security=%s, allowmask=%d]\n<%s> : %s\n\n%s\nproperties:\n%s\n" 
                             itemid' anum' url' formattedDate (show security') allowmask'' (show poster') subject' event' props
             where
-                allowmask'' | allowmask' == Nothing = 0
-                            | otherwise = fromJust allowmask'
+                allowmask'' = maybe 0 (id) allowmask'
                 formattedDate = formatDateTime "%Y-%m-%d %T" eventtime'
                 props = P.unlines $ P.map (show) properties'
 
@@ -126,14 +126,14 @@ parseParamName = makeDescriptor . readP_to_S ( eventPropertyParser +++ propertyP
         eventPropertyParser :: ReadP PairDescriptor
         eventPropertyParser = do
             string "events_"
-            paramId <- munch (flip P.elem ['0','1'..'9'])
+            paramId <- munch C.isDigit
             char '_'
             paramName <- munch (\_ -> True)
             return (EventDescriptor (read paramId) paramName "")
         propertyParser :: ReadP PairDescriptor
         propertyParser = do
             string "prop_"
-            paramId <- munch (flip P.elem ['0','1'..'9'])
+            paramId <- munch C.isDigit
             char '_'
             paramName <- munch (\_ -> True)
             return (PropertyDescriptor (read paramId) paramName "")
@@ -151,11 +151,11 @@ parseResponse pairs = result
         updateMap resMap Nothing = resMap
         updateMap (evtMap, propMap) (Just (EventDescriptor idx key value)) = (updateMap' evtMap idx key value, propMap)
             where
-                updateMap' resMap idx key value | idx `M.member` resMap = M.update (Just . updateListEvent key value) idx resMap
+                updateMap' resMap idx key value | idx `M.member` resMap = M.adjust (updateListEvent key value) idx resMap
                                                 | otherwise = M.insert idx (updateListEvent key value emptyListEvent) resMap
         updateMap (evtMap, propMap) (Just (PropertyDescriptor idx key value)) = (evtMap, updateMap' propMap idx key value)
             where
-                updateMap' resMap idx key value | idx `M.member` resMap = M.update (Just . updateProperty key value) idx resMap
+                updateMap' resMap idx key value | idx `M.member` resMap = M.adjust (updateProperty key value) idx resMap
                                                 | otherwise = M.insert idx (updateProperty key value emptyPropertyContainer) resMap
         emptyListEvent :: ListEvent
         emptyListEvent = ListEvent "" "" "" "" "" (fromSeconds 0) PUBLIC Nothing Nothing []
