@@ -95,13 +95,7 @@ parsePairName = handleParsedPair . TPR.readP_to_S nameParser
     where
         handleParsedPair [(parsedPair,"")] = Just parsedPair
         handleParsedPair _ = Nothing
-        nameParser :: ReadP (Int, String)
-        nameParser = do
-            string "friend_"
-            paramId <- munch C.isDigit
-            char '_'
-            paramName <- munch (\_ -> True)
-            return (read paramId,paramName)
+        nameParser = SRP.simpleLJResponseNameParser "friend_"
 
 updateFriendRecord :: RecordUpdateF LJFriend
 updateFriendRecord "bg" value rec = rec { bgColor = value }

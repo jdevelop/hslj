@@ -6,16 +6,16 @@ module LiveJournal.Post.ListEvent (
 )
 where
 
+import Text.ParserCombinators.ReadP as TPR
 import Data.ByteString.UTF8 as BStr
-import Text.ParserCombinators.ReadP
 import LiveJournal.Pair as PA
 import LiveJournal.Session
 import LiveJournal.Common
 import LiveJournal.Post.EventProps as EP
+import LiveJournal.SimpleResponseParser as SRP
 import Data.DateTime
 import Data.Maybe
 import Data.Word
-import Data.Char as C
 import Text.Printf
 import Prelude as P
 import Data.Map as M
@@ -118,24 +118,16 @@ parsePair (Pair { PA.name=name', PA.value=value' }) = fmap makeTriple $ parsePar
         makeTriple evt@(PropertyDescriptor _ _ _) = evt { propValue = BStr.toString value' }
 
 parseParamName :: String -> Maybe PairDescriptor
-parseParamName = makeDescriptor . readP_to_S ( eventPropertyParser +++ propertyParser )
+parseParamName = makeDescriptor . TPR.readP_to_S ( eventPropertyParser +++ propertyParser )
     where
         makeDescriptor ((descr,""):[]) = Just descr
         makeDescriptor _ = Nothing
         eventPropertyParser :: ReadP PairDescriptor
-        eventPropertyParser = do
-            string "events_"
-            paramId <- munch C.isDigit
-            char '_'
-            paramName <- munch (\_ -> True)
-            return (EventDescriptor (read paramId) paramName "")
+        eventPropertyParser = fmap makePairDescriptor $ SRP.simpleLJResponseNameParser "events_"
+        makePairDescriptor (idx, name) = EventDescriptor idx name ""
         propertyParser :: ReadP PairDescriptor
-        propertyParser = do
-            string "prop_"
-            paramId <- munch C.isDigit
-            char '_'
-            paramName <- munch (\_ -> True)
-            return (PropertyDescriptor (read paramId) paramName "")
+        propertyParser = fmap makePropertyDescrriptor $ SRP.simpleLJResponseNameParser "prop_"
+        makePropertyDescrriptor (idx, name) = PropertyDescriptor idx name ""
 
 type EventMap = M.Map Int ListEvent
 type PropertyMap = M.Map Int PropertyContainer

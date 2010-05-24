@@ -11,10 +11,12 @@ import Prelude as P
 import Network.Curl
 import Data.ByteString.UTF8 as BStrU
 import Data.ByteString.Lazy.Char8 as BStrL
+import Data.Char as C
 import Data.Digest.Pure.MD5
 import LiveJournal.Error
 import LiveJournal.Session
 import LiveJournal.Pair
+import Text.ParserCombinators.ReadP as TPR
 
 runRequest :: [Pair] -> IO [Pair]
 runRequest input = do
@@ -62,3 +64,4 @@ parseResponse = buildPairs . clearEmpty
         clearEmpty = P.dropWhile ( == emptyString ) . BStrU.lines
         buildPairs (name:value:pairs) = Pair name value:buildPairs pairs
         buildPairs _ = []
+

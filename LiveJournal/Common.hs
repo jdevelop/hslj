@@ -6,7 +6,6 @@ import LiveJournal.Error
 import LiveJournal.Session
 import LiveJournal.Transport
 import Data.Maybe
-import Prelude as P
 
 type Result a = Either LJError a
 
