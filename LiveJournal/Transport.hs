@@ -18,7 +18,7 @@ extractResponse = respBody
 runRequest :: LJRequest -> ResponseParser a -> IO a
 runRequest request responseParser = do
     curl <- CU.initialize
-    parser responseParser . Just . extractResponse <$> 
+    runParser responseParser . Just . extractResponse <$> 
         CU.do_curl_ curl "http://www.livejournal.com/interface/flat" curlOptions
     where
         curlOptions = makeRequest request : CU.method_POST
@@ -30,7 +30,7 @@ runRequestSession Anonymous request responseParser = runRequest request response
 runRequestSession (Authenticated password) request responseParser =
     prepareChallenge password >>= DM.maybe emptyParser runRequest'
     where
-        emptyParser = return $ parser responseParser Nothing
+        emptyParser = return $ runParser responseParser Nothing
         runRequest' ( auth_challenge, auth_response ) =
             runRequest newRequest responseParser
             where 
@@ -40,11 +40,18 @@ runRequestSession (Authenticated password) request responseParser =
                     ("auth_method","challenge")] ++ LJR.params request
 
 prepareChallenge :: String -> IO (Maybe (String, String))
-prepareChallenge password = 
-    fmap result <$> runRequest request ( LJRP.findParameter "challenge" )
+prepareChallenge password = do
+    resp <- runRequest request ( findParameter "challenge" )
+    return $ result <$> case resp of
+            ParserState (_,_,ParseError str) -> Nothing
+            ParserState (_,src,_) -> src
     where
         request = makeRequest [("mode","getchallenge")]
         result chal = ( chal, hashcode chal )
         md5Pass = MD5.md5sum $ BStr.pack password
         hashcode chal = MD5.md5sum . BStr.pack $ chal ++ md5Pass
-
+        findParameter paramName = LJRP.nameValueParser Nothing (ResultBuilder builder)
+            where
+                builder src (NameValue (name,value)) 
+                    | name == paramName = Just value
+                    | otherwise = src

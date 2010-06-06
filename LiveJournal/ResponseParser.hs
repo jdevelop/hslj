@@ -3,15 +3,10 @@ module LiveJournal.ResponseParser where
 import Data.ByteString.UTF8 as BStrU
 import Data.List as DL
 import Data.Maybe as DM
+import LiveJournal.Entity
+import LiveJournal.Error
 
 newtype ResponseParser a = ResponseParser { runParser :: Maybe BStrU.ByteString -> a }
-
-findParameter :: String -> ResponseParser (Maybe String)
-findParameter paramName = ResponseParser parserImpl
-    where
-        parserImpl = DM.maybe Nothing (findMatch . dataLines)
-        dataLines = DL.dropWhile ( /= BStrU.fromString paramName ) . BStrU.lines
-        findMatch = DM.maybe Nothing (Just . BStrU.toString) . listToMaybe
 
 data ParseStatus = ParseOk | ParseError { message :: String }
 
@@ -34,3 +29,9 @@ nameValueParser obj builder = ResponseParser parserImpl
             where
                 updateTarget = runNvParser builder target (NameValue (BStrU.toString name, BStrU.toString value))
         handleLines target rest = ParserState (rest, target, ParseOk)
+
+simpleResponseParserWrapper :: ResponseParser (ParserState a) -> ResponseParser (Result a)
+simpleResponseParserWrapper oldParser = ResponseParser ( transformResponse . runParser oldParser )
+    where
+        transformResponse (ParserState (_,src,ParseOk)) = Result $ Right src
+        transformResponse (ParserState (_,_,ParseError msg)) =Result . Left $ SimpleError msg

@@ -1,18 +1,14 @@
-module Entity where
+module LiveJournal.Entity where
 
-data LastUpdate = LastUpdate { lastUpdateStr :: String, hasNew, interval :: Int }
+import LiveJournal.Error
 
-data Event = Event { event, subject :: Maybe String, 
-                     lineendings :: LineEndings,
-                     security :: Maybe Security,
-                     allowmask :: Word32,
-                     date :: DateTime,
-                     metadata :: Maybe [Property] }
+newtype Result a = Result (Either LJError a)
 
-data ListEvent = ListEvent { anum, event, itemid, url, subject :: String, 
-                             eventtime :: DateTime, 
-                             security :: Security, 
-                             allowmask :: Maybe Word32,
-                             poster :: Maybe String,
-                             properties :: [Property]
-                             }
+makeErrorStr ::  String -> Result (Either LJError a)
+makeErrorStr = Result . Left . SimpleError
+
+makeError ::  LJError -> Result a
+makeError = Result . Left
+
+makeResult :: a -> Result a
+makeResult = Result . Right
