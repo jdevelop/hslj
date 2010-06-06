@@ -1,67 +1,50 @@
-module LiveJournal.Transport(
-    Session(..),
-    runRequest,
-    runRequestSession,
-    prepareChallenge
-)
-where
+module LiveJournal.Transport where
 
-import Data.Maybe
-import Prelude as P
-import Network.Curl
+import Control.Applicative
+import Data.Maybe as DM
+import Data.List as DL
+import Network.Curl as CU
 import Data.ByteString.UTF8 as BStrU
-import Data.ByteString.Lazy.Char8 as BStrL
-import Data.Char as C
-import Data.Digest.Pure.MD5
-import LiveJournal.Error
-import LiveJournal.Session
-import LiveJournal.Pair
-import Text.ParserCombinators.ReadP as TPR
+import Data.ByteString.Char8 as BStr
+import Data.Digest.OpenSSL.MD5 as MD5
 
-runRequest :: [Pair] -> IO [Pair]
-runRequest input = do
-    curl <- initialize
-    fmap ( parseResponse . extractResponse ) $ do_curl_ curl "http://www.livejournal.com/interface/flat" curlOptions
-    where
-        curlOptions = joinPairs input:method_POST
-        joinPairs = CurlPostFields . P.map joinPair
-        joinPair = show  -- may be some sort of escaping?
-
-runRequestSession :: Session -> [Pair] -> IO [Pair]
-runRequestSession Anonymous pairs = runRequest pairs
-runRequestSession (Authenticated password) pairs = do 
-    challenge <- prepareChallenge password
-    runRequest' pairs challenge
-    where
-        runRequest' pairs Nothing = return []
-        runRequest' pairs (Just (auth_challenge,auth_response) ) =
-            runRequest newPairs
-            where 
-                newPairs = makePairBSValue "auth_challenge" auth_challenge:
-                    makePairBSValue "auth_response" auth_response:
-                    makePair "auth_method" "challenge":
-                    pairs
-
-prepareChallenge :: String -> IO (Maybe (BStrU.ByteString, BStrU.ByteString))
-prepareChallenge password = do
-    response <- runRequest [makePair "mode" "getchallenge"]
-    return . fmap result $ findPair "challenge" response
-    where
-        md5Pass = BStrL.pack . show . md5 $ BStrL.pack password -- have no idea how to force MD5Digest to be converted to lazy bytestring
-        repack = BStrL.fromChunks . (:[])
-        hashcode chal = md5 $ BStrL.concat [chal, md5Pass]
-        result chal = (chal, BStrU.fromString . show . hashcode . repack $ chal )
+import LiveJournal.Session as LJS
+import LiveJournal.Request as LJR
+import LiveJournal.ResponseParser as LJRP
 
 extractResponse :: CurlResponse_ [(String,String)] BStrU.ByteString -> BStrU.ByteString
 extractResponse = respBody
 
-emptyString :: BStrU.ByteString
-emptyString = BStrU.fromString "" 
-
-parseResponse :: BStrU.ByteString -> [Pair]
-parseResponse = buildPairs . clearEmpty
+runRequest :: LJRequest -> ResponseParser a -> IO a
+runRequest request responseParser = do
+    curl <- CU.initialize
+    parser responseParser . Just . extractResponse <$> 
+        CU.do_curl_ curl "http://www.livejournal.com/interface/flat" curlOptions
     where
-        clearEmpty = P.dropWhile ( == emptyString ) . BStrU.lines
-        buildPairs (name:value:pairs) = Pair name value:buildPairs pairs
-        buildPairs _ = []
+        curlOptions = makeRequest request : CU.method_POST
+        makeRequest = CurlPostFields . DL.map makeParamNV . params
+        makeParamNV (RequestParam name value) = name ++ "=" ++ value
+
+runRequestSession :: Session -> LJRequest -> ResponseParser a -> IO a
+runRequestSession Anonymous request responseParser = runRequest request responseParser
+runRequestSession (Authenticated password) request responseParser =
+    prepareChallenge password >>= DM.maybe emptyParser runRequest'
+    where
+        emptyParser = return $ parser responseParser Nothing
+        runRequest' ( auth_challenge, auth_response ) =
+            runRequest newRequest responseParser
+            where 
+                newRequest = Request $ LJR.makeRequestParams [
+                    ("auth_challenge", auth_challenge),
+                    ("auth_response", auth_response),
+                    ("auth_method","challenge")] ++ LJR.params request
+
+prepareChallenge :: String -> IO (Maybe (String, String))
+prepareChallenge password = 
+    fmap result <$> runRequest request ( LJRP.findParameter "challenge" )
+    where
+        request = makeRequest [("mode","getchallenge")]
+        result chal = ( chal, hashcode chal )
+        md5Pass = MD5.md5sum $ BStr.pack password
+        hashcode chal = MD5.md5sum . BStr.pack $ chal ++ md5Pass
 
