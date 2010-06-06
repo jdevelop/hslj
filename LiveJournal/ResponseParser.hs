@@ -33,5 +33,5 @@ nameValueParser obj builder = ResponseParser parserImpl
 simpleResponseParserWrapper :: ResponseParser (ParserState a) -> ResponseParser (Result a)
 simpleResponseParserWrapper oldParser = ResponseParser ( transformResponse . runParser oldParser )
     where
-        transformResponse (ParserState (_,src,ParseOk)) = Result $ Right src
+        transformResponse (ParserState (_,src,ParseOk)) = makeResult src
         transformResponse (ParserState (_,_,ParseError msg)) =Result . Left $ SimpleError msg
