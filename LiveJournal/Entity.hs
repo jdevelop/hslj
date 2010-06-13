@@ -1,8 +1,9 @@
 module LiveJournal.Entity where
 
 import LiveJournal.Error
+import Data.Either
 
-newtype Result a = Result (Either LJError a)
+newtype Result a = Result { getLJResult :: Either LJError a } deriving (Show)
 
 makeErrorStr ::  String -> Result (Either LJError a)
 makeErrorStr = Result . Left . SimpleError
