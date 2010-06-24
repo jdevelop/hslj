@@ -13,6 +13,7 @@ import LiveJournal.Request
 import LiveJournal.ResponseParser as LJRP
 
 import Control.Applicative
+import Control.Monad
 
 import Data.Maybe as DM
 import Data.List as DL
@@ -59,23 +60,20 @@ loginExt request =
                             ("auth_response",auth_response)
                          ],
                          DM.maybe [] ( makeTupleSArr "getmoods" .  show ) ( moods request ),
-                         unwrapBool (menus request) $ makeTupleSArr "getmenus" "1",
-                         unwrapBool (pickws request) $ makeTupleSArr "getpickws" "1",
-                         unwrapBool (pickwurls request) $ makeTupleSArr "getpickwurls" "1"
+                         guard (menus request) >> makeTupleSArr "getmenus" "1",
+                         guard (pickws request) >> makeTupleSArr "getpickws" "1",
+                         guard (pickwurls request) >> makeTupleSArr "getpickwurls" "1"
                          ]
                 request' = makeRequest params
                 initialResponse = LoginResponse "" Anonymous []
                 sessionParser = nameValueParser initialResponse $ loginResponseBuilder request
-                makeTupleSArr name = (:[]) . (,) name
-                unwrapBool cond f  = if cond
-                                     then f
-                                     else []
+                makeTupleSArr = ( return . ) . (,)
 
 loginResponseBuilder :: LJLoginRequest -> ResultBuilder LJLoginResponse
 loginResponseBuilder request = ResultBuilder builder
     where
         builder response
-                (NameValue ("success","OK")) = response { ljSession = Authenticated $ password request }
+                (NameValue ("success","OK")) = response { ljSession = Authenticated ( password request ) }
         builder response
                 (NameValue (name, value)) 
                     | matchIt ( TP.string "access_" >> TP.many TP.digit >> TP.eof ) name = 
