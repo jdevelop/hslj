@@ -5,50 +5,82 @@ module LiveLournal.ResponseParser where
 import Text.Parsec as TP
 import Control.Monad as CM
 import Data.Map as DM
-import Control.Applicative hiding ( (<|>) )
+import Data.List as DL
 
-data ResponseParam = PrimitiveParam { pObjName, pObjValue :: String } |
-                     EnumeratedParam { eObjName, eObjValue :: String, eObjId :: Int } |
-                     ObjectParam { objType, objName, objValue :: String, objId :: Int } deriving (Show)
+type ObjectFactory b = String -> b
+type ObjectUpdater b = String -> String -> b -> b
+
+data ResponseParserState a b = RPS { simpleMap :: DM.Map String String,
+                                     listMap :: DM.Map String [a],
+                                     objectMap :: DM.Map String (DM.Map Int b),
+                                     newObjectF :: ObjectFactory b,
+                                     updateObjectF :: ObjectUpdater b
+                                   }
 
 notNewlineP = TP.noneOf "\r\n"
 
-enumeratedParser ::  (Stream s m Char) => ParsecT s u m ResponseParam
+enumeratedParser :: (Stream s m Char) => ParsecT s (ResponseParserState [Char] b) m ()
 enumeratedParser = do 
     paramName <- TP.many (TP.noneOf "_")
     TP.char '_'
-    paramId <- CM.liftM read (TP.many (TP.digit))
+    TP.many (TP.digit)
     TP.newline
     paramValue <- TP.many notNewlineP
     TP.newline
-    return $ EnumeratedParam paramName paramValue paramId
+    currentState <- TP.getState
+    let listMap' = DM.alter ( updateMapKey paramValue ) paramName $ listMap currentState
+    TP.putState $ currentState { listMap = listMap' }
+    where
+        updateMapKey value (Just params) = Just $ value:params
+        updateMapKey value Nothing = Just [value]
 
-primitiveParser :: (Stream s m Char) => ParsecT s u m ResponseParam
+primitiveParser :: (Stream s m Char) => ParsecT s (ResponseParserState a b) m ()
 primitiveParser = do
     paramName <- TP.many notNewlineP
     TP.newline
     paramValue <- TP.many notNewlineP
     TP.newline
-    return $ PrimitiveParam paramName paramValue
+    currentState <- TP.getState
+    let simpleMap' = DM.insert paramName paramValue $ simpleMap currentState
+    TP.putState $ currentState { simpleMap = simpleMap' }
 
-objectParamParser :: (Stream s m Char) => ParsecT s u m ResponseParam
+objectParamParser :: (Stream s m Char) => ParsecT s (ResponseParserState a b) m ()
 objectParamParser = do
     objectType <- TP.many (TP.noneOf "_")
     TP.char '_'
-    objectId <- CM.liftM read (TP.many (TP.digit))
+    objectId <- CM.liftM ( read :: String -> Int ) (TP.many (TP.digit))
     TP.char '_'
     propertyName <- TP.many notNewlineP
     TP.newline
     propertyValue <- TP.many notNewlineP
     TP.newline
-    return $ ObjectParam objectType propertyName propertyValue objectId
+    currentState <- TP.getState
+    let tmpMap = objectMap currentState
+        objectMap' = DM.alter ( updateMapKey currentState objectType objectId propertyName propertyValue ) objectType tmpMap
+    TP.putState $ currentState { objectMap = objectMap' }
+    where
+        updateMapKey (RPS _ _ _ newObject updateObject) 
+                     objectType objectId propertyName propertyValue 
+                     Nothing = Just $ (DM.singleton objectId (updateObject propertyName propertyValue
+                            (newObject objectType)))
+        updateMapKey (RPS _ _ _ newObject updateObject) 
+                     objectType objectId propertyName propertyValue 
+                     (Just objTypeMap) = 
+                        Just $ DM.alter ( Just . updExistingObj ) 
+                               objectId objTypeMap
+                    where
+                        newObjectInst = newObject objectType
+                        updExistingObj Nothing = updateObject propertyName propertyValue newObjectInst
+                        updExistingObj (Just obj) = updateObject propertyName propertyValue obj
 
-responseParser :: (Stream s m Char) =>Map String String -> ParsecT s u m (Map String String)
-responseParser initMap = do
-    parseData <|> ( TP.eof >> return initMap )
+responseParser newObject updateObject = do
+    putState $ RPS DM.empty DM.empty DM.empty newObject updateObject
+    parseData <|> finishData
     where
         parseData = do
-            result <- (try objectParamParser) <|> ( (try enumeratedParser) <|> primitiveParser)
-            responseParser $ updateMap result
-        updateMap ( PrimitiveParam name value ) = DM.insert name value initMap
-        updateMap _ = initMap
+            (try objectParamParser) <|> ( (try enumeratedParser) <|> primitiveParser)
+            parseData
+        finishData = do
+            TP.eof
+            (RPS simpleMap listMap objectMap _ _ ) <- TP.getState
+            return (simpleMap, DM.map DL.reverse listMap, objectMap)
