@@ -76,12 +76,12 @@ loginResponseBuilder request = ResultBuilder builder
                 (NameValue ("success","OK")) = response { ljSession = Authenticated ( password request ) }
         builder response
                 (NameValue (name, value)) 
-                    | matchIt ( TP.string "access_" >> TP.many TP.digit >> TP.eof ) name = 
+                    | matchIt "access_" name = 
                         response { ljCommunities = value:(ljCommunities response) }
                     | otherwise = response
        
-matchIt parserSpec src = case parseResult of
+matchIt paramName src = case parseResult of
                         Right _ -> True
                         Left _  -> False
     where 
-        parseResult = TP.parse parserSpec "" src
+        parseResult = TP.parse ( TP.string paramName >> TP.many TP.digit >> TP.eof )  "" src

@@ -1,37 +1,54 @@
-module LiveJournal.ResponseParser where
+{-# LANGUAGE NoMonomorphismRestriction,FlexibleContexts#-}
 
-import Data.ByteString.UTF8 as BStrU
-import Data.List as DL
-import Data.Maybe as DM
-import LiveJournal.Entity
-import LiveJournal.Error
+module LiveLournal.ResponseParser where
 
-newtype ResponseParser a = ResponseParser { runParser :: Maybe BStrU.ByteString -> a }
+import Text.Parsec as TP
+import Control.Monad as CM
+import Data.Map as DM
+import Control.Applicative hiding ( (<|>) )
 
-data ParseStatus = ParseOk | ParseError { message :: String }
+data ResponseParam = PrimitiveParam { pObjName, pObjValue :: String } |
+                     EnumeratedParam { eObjName, eObjValue :: String, eObjId :: Int } |
+                     ObjectParam { objType, objName, objValue :: String, objId :: Int } deriving (Show)
 
-newtype ParserState a = ParserState ([ByteString], a, ParseStatus)
+notNewlineP = TP.noneOf "\r\n"
 
-newtype NameValue = NameValue (String, String)
+enumeratedParser ::  (Stream s m Char) => ParsecT s u m ResponseParam
+enumeratedParser = do 
+    paramName <- TP.many (TP.noneOf "_")
+    TP.char '_'
+    paramId <- CM.liftM read (TP.many (TP.digit))
+    TP.newline
+    paramValue <- TP.many notNewlineP
+    TP.newline
+    return $ EnumeratedParam paramName paramValue paramId
 
-newtype ResultBuilder a = ResultBuilder { runNvParser :: a -> NameValue -> a }
+primitiveParser :: (Stream s m Char) => ParsecT s u m ResponseParam
+primitiveParser = do
+    paramName <- TP.many notNewlineP
+    TP.newline
+    paramValue <- TP.many notNewlineP
+    TP.newline
+    return $ PrimitiveParam paramName paramValue
 
-errMsgParamName = BStrU.fromString "errmsg"
+objectParamParser :: (Stream s m Char) => ParsecT s u m ResponseParam
+objectParamParser = do
+    objectType <- TP.many (TP.noneOf "_")
+    TP.char '_'
+    objectId <- CM.liftM read (TP.many (TP.digit))
+    TP.char '_'
+    propertyName <- TP.many notNewlineP
+    TP.newline
+    propertyValue <- TP.many notNewlineP
+    TP.newline
+    return $ ObjectParam objectType propertyName propertyValue objectId
 
-nameValueParser :: a -> ResultBuilder a -> ResponseParser (ParserState a)
-nameValueParser obj builder = ResponseParser parserImpl
+responseParser :: (Stream s m Char) =>Map String String -> ParsecT s u m (Map String String)
+responseParser initMap = do
+    parseData <|> ( TP.eof >> return initMap )
     where
-        emptyParser = ParserState ([], obj, (ParseError "No input"))
-        parserImpl = DM.maybe emptyParser (handleLines obj . BStrU.lines)
-        handleLines target (name:value:rest) 
-            | name == errMsgParamName =  ParserState (rest, target, (ParseError $ BStrU.toString value))
-            | otherwise = handleLines updateTarget rest
-            where
-                updateTarget = runNvParser builder target (NameValue (BStrU.toString name, BStrU.toString value))
-        handleLines target rest = ParserState (rest, target, ParseOk)
-
-simpleResponseParserWrapper :: ResponseParser (ParserState a) -> ResponseParser (Result a)
-simpleResponseParserWrapper oldParser = ResponseParser ( transformResponse . runParser oldParser )
-    where
-        transformResponse (ParserState (_,src,ParseOk)) = makeResult src
-        transformResponse (ParserState (_,_,ParseError msg)) =Result . Left $ SimpleError msg
+        parseData = do
+            result <- (try objectParamParser) <|> ( (try enumeratedParser) <|> primitiveParser)
+            responseParser $ updateMap result
+        updateMap ( PrimitiveParam name value ) = DM.insert name value initMap
+        updateMap _ = initMap
