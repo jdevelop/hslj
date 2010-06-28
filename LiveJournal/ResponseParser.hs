@@ -9,6 +9,7 @@ import Data.List as DL
 
 type ObjectFactory b = String -> b
 type ObjectUpdater b = String -> String -> b -> b
+type ParseResult a b = (DM.Map String String, DM.Map String [a], DM.Map String ( DM.Map Int b ) )
 
 data ResponseParserState a b = RPS { simpleMap :: DM.Map String String,
                                      listMap :: DM.Map String [a],
@@ -26,7 +27,7 @@ enumeratedParser = do
     TP.many (TP.digit)
     TP.newline
     paramValue <- TP.many notNewlineP
-    TP.newline
+    TP.optional TP.newline
     currentState <- TP.getState
     let listMap' = DM.alter ( updateMapKey paramValue ) paramName $ listMap currentState
     TP.putState $ currentState { listMap = listMap' }
@@ -39,7 +40,7 @@ primitiveParser = do
     paramName <- TP.many notNewlineP
     TP.newline
     paramValue <- TP.many notNewlineP
-    TP.newline
+    TP.optional TP.newline
     currentState <- TP.getState
     let simpleMap' = DM.insert paramName paramValue $ simpleMap currentState
     TP.putState $ currentState { simpleMap = simpleMap' }
@@ -53,7 +54,7 @@ objectParamParser = do
     propertyName <- TP.many notNewlineP
     TP.newline
     propertyValue <- TP.many notNewlineP
-    TP.newline
+    TP.optional TP.newline
     currentState <- TP.getState
     let tmpMap = objectMap currentState
         objectMap' = DM.alter ( updateMapKey currentState objectType objectId propertyName propertyValue ) objectType tmpMap
@@ -73,14 +74,17 @@ objectParamParser = do
                         updExistingObj Nothing = updateObject propertyName propertyValue newObjectInst
                         updExistingObj (Just obj) = updateObject propertyName propertyValue obj
 
-responseParser newObject updateObject = do
-    putState $ RPS DM.empty DM.empty DM.empty newObject updateObject
+responseParser = do
     parseData <|> finishData
     where
         parseData = do
             (try objectParamParser) <|> ( (try enumeratedParser) <|> primitiveParser)
-            parseData
+            responseParser
         finishData = do
             TP.eof
             (RPS simpleMap listMap objectMap _ _ ) <- TP.getState
             return (simpleMap, DM.map DL.reverse listMap, objectMap)
+
+parseResponse :: (Stream s [] Char) =>ObjectFactory b-> ObjectUpdater b-> s-> [ (Either ParseError (ParseResult String b) )]
+parseResponse newObject updateObject = 
+    TP.runPT responseParser (RPS DM.empty DM.empty DM.empty newObject updateObject) ""
