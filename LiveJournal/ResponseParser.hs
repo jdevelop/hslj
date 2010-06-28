@@ -20,11 +20,11 @@ data ResponseParserState a b = RPS { simpleMap :: DM.Map String String,
 
 notNewlineP = TP.noneOf "\r\n"
 
-enumeratedParser :: (Stream s m Char) => ParsecT s (ResponseParserState [Char] b) m ()
+enumeratedParser :: (Stream s m Char) => ParsecT s (ResponseParserState String b) m ()
 enumeratedParser = do 
     paramName <- TP.many (TP.noneOf "_")
     TP.char '_'
-    TP.many (TP.digit)
+    TP.many TP.digit
     TP.newline
     paramValue <- TP.many notNewlineP
     TP.optional TP.newline
@@ -32,7 +32,7 @@ enumeratedParser = do
     let listMap' = DM.alter ( updateMapKey paramValue ) paramName $ listMap currentState
     TP.putState $ currentState { listMap = listMap' }
     where
-        updateMapKey value (Just params) = Just $ value:params
+        updateMapKey value (Just params) = Just (value:params)
         updateMapKey value Nothing = Just [value]
 
 primitiveParser :: (Stream s m Char) => ParsecT s (ResponseParserState a b) m ()
@@ -49,7 +49,7 @@ objectParamParser :: (Stream s m Char) => ParsecT s (ResponseParserState a b) m 
 objectParamParser = do
     objectType <- TP.many (TP.noneOf "_")
     TP.char '_'
-    objectId <- CM.liftM ( read :: String -> Int ) (TP.many (TP.digit))
+    objectId <- CM.liftM ( read :: String -> Int ) (TP.many TP.digit)
     TP.char '_'
     propertyName <- TP.many notNewlineP
     TP.newline
@@ -62,7 +62,7 @@ objectParamParser = do
     where
         updateMapKey (RPS _ _ _ newObject updateObject) 
                      objectType objectId propertyName propertyValue 
-                     Nothing = Just $ (DM.singleton objectId (updateObject propertyName propertyValue
+                     Nothing = Just (DM.singleton objectId (updateObject propertyName propertyValue
                             (newObject objectType)))
         updateMapKey (RPS _ _ _ newObject updateObject) 
                      objectType objectId propertyName propertyValue 
@@ -74,17 +74,17 @@ objectParamParser = do
                         updExistingObj Nothing = updateObject propertyName propertyValue newObjectInst
                         updExistingObj (Just obj) = updateObject propertyName propertyValue obj
 
-responseParser = do
+responseParser =
     parseData <|> finishData
     where
         parseData = do
-            (try objectParamParser) <|> ( (try enumeratedParser) <|> primitiveParser)
+            try objectParamParser <|> ( try enumeratedParser <|> primitiveParser)
             responseParser
         finishData = do
             TP.eof
             (RPS simpleMap listMap objectMap _ _ ) <- TP.getState
             return (simpleMap, DM.map DL.reverse listMap, objectMap)
 
-parseResponse :: (Stream s [] Char) =>ObjectFactory b-> ObjectUpdater b-> s-> [ (Either ParseError (ParseResult String b) )]
+parseResponse :: (Stream s [] Char) =>ObjectFactory b-> ObjectUpdater b-> s-> Either ParseError (ParseResult String b)
 parseResponse newObject updateObject = 
-    TP.runPT responseParser (RPS DM.empty DM.empty DM.empty newObject updateObject) ""
+    head . TP.runPT responseParser (RPS DM.empty DM.empty DM.empty newObject updateObject) ""
