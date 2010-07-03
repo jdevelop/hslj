@@ -1,7 +1,9 @@
+{-# LANGUAGE NoMonomorphismRestriction,FlexibleContexts #-}
 module LiveJournal.Transport where
 
 import Control.Applicative
 import Data.Maybe as DM
+import Data.Map as DMP
 import Data.List as DL
 import Network.Curl as CU
 import Data.ByteString.UTF8 as BStrU
@@ -11,26 +13,34 @@ import Data.Digest.OpenSSL.MD5 as MD5
 import LiveJournal.Session as LJS
 import LiveJournal.Request as LJR
 import LiveJournal.ResponseParser as LJRP
+import LiveJournal.Error
+
+data CustomResponseParser a b = CRP { 
+    customObjectFactory :: ObjectFactory b,
+    customObjectDAO :: ObjectUpdater b
+    }
 
 extractResponse :: CurlResponse_ [(String,String)] BStrU.ByteString -> BStrU.ByteString
 extractResponse = respBody
 
-runRequest :: LJRequest -> ResponseParser a -> IO a
+runRequest :: LJRequest -> CustomResponseParser String b -> IO ( Either LJError (ParseResult String b) )
 runRequest request responseParser = do
     curl <- CU.initialize
-    runParser responseParser . Just . extractResponse <$> 
+    parseResponse _customObjectFactory _customObjectDAO .  extractResponse <$> 
         CU.do_curl_ curl "http://www.livejournal.com/interface/flat" curlOptions
     where
+        _customObjectFactory = customObjectFactory responseParser
+        _customObjectDAO = customObjectDAO responseParser
         curlOptions = makeRequest request : CU.method_POST
         makeRequest = CurlPostFields . DL.map makeParamNV . params
         makeParamNV (RequestParam name value) = name ++ "=" ++ value
 
-runRequestSession :: Session -> LJRequest -> ResponseParser a -> IO a
+runRequestSession :: Session -> LJRequest -> CustomResponseParser String b -> IO ( Either LJError (ParseResult String b) )
 runRequestSession Anonymous request responseParser = runRequest request responseParser
 runRequestSession (Authenticated password) request responseParser =
     prepareChallenge password >>= DM.maybe emptyParser runRequest'
     where
-        emptyParser = return $ runParser responseParser Nothing
+        emptyParser = return $ Left WrongResponseFormat
         runRequest' ( auth_challenge, auth_response ) =
             runRequest newRequest responseParser
             where 
@@ -41,17 +51,16 @@ runRequestSession (Authenticated password) request responseParser =
 
 prepareChallenge :: String -> IO (Maybe (String, String))
 prepareChallenge password = do
-    resp <- runRequest request ( findParameter "challenge" )
-    return $ result <$> case resp of
-            ParserState (_,_,ParseError str) -> Nothing
-            ParserState (_,src,_) -> src
+    getChallenge <$> runRequest request (CRP noFactory noUpdate)
     where
         request = makeRequest [("mode","getchallenge")]
         result chal = ( chal, hashcode chal )
         md5Pass = MD5.md5sum $ BStr.pack password
         hashcode chal = MD5.md5sum . BStr.pack $ chal ++ md5Pass
-        findParameter paramName = LJRP.nameValueParser Nothing (ResultBuilder builder)
-            where
-                builder src (NameValue (name,value)) 
-                    | name == paramName = Just value
-                    | otherwise = src
+        getChallenge (Left _) = Nothing
+        getChallenge (Right (simpleMap, _, _)) = do 
+            chlg <- DMP.lookup "challenge" simpleMap
+            return $ result chlg
+        noFactory = \_ -> Nothing
+        noUpdate = \_ _ _ -> Nothing
+
