@@ -10,6 +10,7 @@ import Data.ByteString.UTF8 as BStrU
 import Data.ByteString.Char8 as BStr
 import Data.Digest.OpenSSL.MD5 as MD5
 
+import LiveJournal.Entity
 import LiveJournal.Session as LJS
 import LiveJournal.Request as LJR
 import LiveJournal.ResponseParser as LJRP
@@ -23,7 +24,7 @@ data CustomResponseParser a b = CRP {
 extractResponse :: CurlResponse_ [(String,String)] BStrU.ByteString -> BStrU.ByteString
 extractResponse = respBody
 
-runRequest :: LJRequest -> CustomResponseParser String b -> IO ( Either LJError (ParseResult String b) )
+runRequest :: LJRequest -> CustomResponseParser String b -> IO ( Result (ParseResult String b) )
 runRequest request responseParser = do
     curl <- CU.initialize
     parseResponse _customObjectFactory _customObjectDAO .  extractResponse <$> 
@@ -35,12 +36,12 @@ runRequest request responseParser = do
         makeRequest = CurlPostFields . DL.map makeParamNV . params
         makeParamNV (RequestParam name value) = name ++ "=" ++ value
 
-runRequestSession :: Session -> LJRequest -> CustomResponseParser String b -> IO ( Either LJError (ParseResult String b) )
+runRequestSession :: Session -> LJRequest -> CustomResponseParser String b -> IO ( Result (ParseResult String b) )
 runRequestSession Anonymous request responseParser = runRequest request responseParser
 runRequestSession (Authenticated password) request responseParser =
     prepareChallenge password >>= DM.maybe emptyParser runRequest'
     where
-        emptyParser = return $ Left WrongResponseFormat
+        emptyParser = return . makeError $ WrongResponseFormat "no challenge"
         runRequest' ( auth_challenge, auth_response ) =
             runRequest newRequest responseParser
             where 
@@ -51,7 +52,7 @@ runRequestSession (Authenticated password) request responseParser =
 
 prepareChallenge :: String -> IO (Maybe (String, String))
 prepareChallenge password = do
-    getChallenge <$> runRequest request (CRP noFactory noUpdate)
+    getChallenge . getLJResult <$> runRequest request (CRP noFactory noUpdate)
     where
         request = makeRequest [("mode","getchallenge")]
         result chal = ( chal, hashcode chal )

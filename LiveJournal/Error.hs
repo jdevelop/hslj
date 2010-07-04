@@ -7,18 +7,18 @@ import Control.Monad.Error.Class
 data LJError = AuthRequired |
              WrongCredentials |
              NoChallenge |
-             WrongResponseFormat | 
+             WrongResponseFormat { message :: String } | 
              SimpleError { message :: String }
 
 instance Error LJError
     where
-        noMsg = WrongResponseFormat
+        noMsg = WrongResponseFormat ""
         strMsg = SimpleError
 
 instance Show LJError
     where
         show AuthRequired = "AuthRequired"
-        show WrongResponseFormat = "WrongResponseFormat"
+        show (WrongResponseFormat msg) = "WrongResponseFormat { " ++ msg ++ " }"
         show NoChallenge = "NoChallenge"
         show WrongCredentials = "WrongCredentials"
-        show (SimpleError msg) = "SimpleError {" ++ msg ++ "}"
+        show (SimpleError msg) = "SimpleError { " ++ msg ++ " }"

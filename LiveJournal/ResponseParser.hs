@@ -9,6 +9,7 @@ module LiveJournal.ResponseParser (
 where
 
 import Text.Parsec as TP
+import Text.Parsec.Error
 import Text.Parsec.ByteString
 import Control.Monad as CM
 import Data.Map as DM
@@ -17,6 +18,7 @@ import Data.ByteString.UTF8
 import Control.Applicative hiding ((<|>))
 
 import LiveJournal.Error
+import LiveJournal.Entity
 
 type ObjectFactory b = String -> Maybe b
 type ObjectUpdater b = String -> String -> b -> Maybe b
@@ -89,11 +91,12 @@ finishData = do
     (RPS simpleMap listMap objectMap _ _ ) <- TP.getState
     return (simpleMap, DM.map DL.reverse listMap, objectMap)
 
-parseResponse :: (Stream s [] Char) => ObjectFactory b -> ObjectUpdater b -> s -> Either LJError (ParseResult String b)
+parseResponse :: (Stream s [] Char) => ObjectFactory b -> ObjectUpdater b -> s -> Result (ParseResult String b)
 parseResponse newObject updateObject = 
     handleParseResult . parsecResult
     where
         parsecResult = head . TP.runPT (TP.manyTill responseParser TP.eof >> finishData) 
             (RPS DM.empty DM.empty DM.empty newObject updateObject) ""
-        handleParseResult (Left parseError) = Left WrongResponseFormat
-        handleParseResult (Right result) = Right result
+        handleParseResult (Left parseError) = makeError $ 
+            WrongResponseFormat ( concatMap messageString $ errorMessages parseError )
+        handleParseResult (Right result) = makeResult result
