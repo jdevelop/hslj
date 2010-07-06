@@ -21,7 +21,7 @@ import LiveJournal.Error
 import LiveJournal.Entity
 
 type ObjectFactory b = String -> Maybe b
-type ObjectUpdater b = String -> String -> b -> Maybe b
+type ObjectUpdater b = String -> String -> String -> b -> Maybe b
 type ParseResult a b = (DM.Map String String, DM.Map String [a], DM.Map String ( DM.Map Int b ) )
 
 data ResponseParserState a b = RPS { simpleMap :: DM.Map String String,
@@ -72,7 +72,7 @@ objectParamParser = do
         updateMapKey (RPS _ _ _ newObject updateObject) 
                      objectType objectId propertyName propertyValue
                      Nothing = newObject objectType >>= 
-                               updateObject propertyName propertyValue >>= 
+                               updateObject objectType propertyName propertyValue >>= 
                                Just . DM.singleton objectId
         updateMapKey (RPS _ _ _ newObject updateObject) 
                      objectType objectId propertyName propertyValue 
@@ -81,8 +81,9 @@ objectParamParser = do
                                objectId objTypeMap
                     where
                         newObjectInst = newObject objectType
-                        updExistingObj Nothing = newObjectInst >>= updateObject propertyName propertyValue
-                        updExistingObj (Just obj) = updateObject propertyName propertyValue obj
+                        updExistingObj Nothing = newObjectInst >>= updObjHint
+                        updExistingObj (Just obj) =  updObjHint obj
+                        updObjHint = updateObject objectType propertyName propertyValue
 
 responseParser =
     try ( objectParamParser <|> enumeratedParser <|> primitiveParser ) *> TP.optional TP.newline

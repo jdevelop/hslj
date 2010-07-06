@@ -14,6 +14,7 @@ import LiveJournal.ResponseParser as LJRP
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Trans
 
 import Data.Maybe as DM
 import Data.List as DL
@@ -37,19 +38,33 @@ data LJLoginResponse = LoginResponse {
                                        ljCommunities :: [Community]
                                      }
 
+data LoginResponseData = Mood { moodId, moodParent :: Int, moodName :: String } |
+                         Group { groupName :: String, groupSortOrder :: String } |
+                         Menu { menuUrl, menuText :: String }
+
 instance Show LJLoginResponse where
     show (LoginResponse uname session comms) = uname ++ show comms
 
 login :: String -> String -> IO ( Result LJLoginResponse )
 login username password = loginExt $ LoginRequest username password Nothing False False False
 
+loginObjectFactory :: ObjectFactory LoginResponseData
+loginObjectFactory "mood" = Just $ Mood 0 0 ""
+loginObjectFactory _ = Nothing
+
+loginObjectUpdater :: ObjectUpdater LoginResponseData
+loginObjectUpdater "mood" "id" value obj = Just $ obj { moodId = read value }
+loginObjectUpdater "mood" "name" value obj = Just $ obj { moodName = value }
+loginObjectUpdater "mood" "parent" value obj = Just $ obj { moodParent = read value }
+loginObjectUpdater _ _ _ _ = Nothing
+
 loginExt :: LJLoginRequest -> IO ( Result LJLoginResponse )
 loginExt request =
     prepareChallenge ( password request ) >>= DM.maybe emptyResponse login'
     where
         emptyResponse = return ( makeError NoChallenge )
-        login' (chal, auth_response) =
-            runRequest request' (LJRP.simpleResponseParserWrapper sessionParser)
+        login' (chal, auth_response) = 
+            handleResp . getLJResult <$> runRequest request' (CRP loginObjectFactory loginObjectUpdater)
             where
                 params = DL.concat [
                         [
@@ -65,23 +80,5 @@ loginExt request =
                          guard (pickwurls request) >> makeTupleSArr "getpickwurls" "1"
                          ]
                 request' = makeRequest params
-                initialResponse = LoginResponse "" Anonymous []
-                sessionParser = nameValueParser initialResponse $ loginResponseBuilder request
                 makeTupleSArr = ( return . ) . (,)
-
-loginResponseBuilder :: LJLoginRequest -> ResultBuilder LJLoginResponse
-loginResponseBuilder request = ResultBuilder builder
-    where
-        builder response
-                (NameValue ("success","OK")) = response { ljSession = Authenticated ( password request ) }
-        builder response
-                (NameValue (name, value)) 
-                    | matchIt "access_" name = 
-                        response { ljCommunities = value:(ljCommunities response) }
-                    | otherwise = response
-       
-matchIt paramName src = case parseResult of
-                        Right _ -> True
-                        Left _  -> False
-    where 
-        parseResult = TP.parse ( TP.string paramName >> TP.many TP.digit >> TP.eof )  "" src
+                handleResp = undefined

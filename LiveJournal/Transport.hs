@@ -1,4 +1,5 @@
-{-# LANGUAGE NoMonomorphismRestriction,FlexibleContexts #-}
+{-# LANGUAGE NoMonomorphismRestriction,FlexibleContexts,
+             TypeSynonymInstances,FlexibleInstances,MultiParamTypeClasses #-}
 module LiveJournal.Transport where
 
 import Control.Applicative
@@ -21,13 +22,22 @@ data CustomResponseParser a b = CRP {
     customObjectDAO :: ObjectUpdater b
     }
 
+class ResponseTransformer a b where
+    transform :: ParseResult String a -> b
+
 extractResponse :: CurlResponse_ [(String,String)] BStrU.ByteString -> BStrU.ByteString
 extractResponse = respBody
 
-runRequest :: LJRequest -> CustomResponseParser String b -> IO ( Result (ParseResult String b) )
+applyResultP :: (ResponseTransformer a b) => Result (ParseResult String a) -> Result b
+applyResultP = applyResultP' . getLJResult
+    where
+        applyResultP' (Left err) = makeError err
+        applyResultP' (Right s) = makeResult $ transform s
+
+runRequest :: (ResponseTransformer a b) => LJRequest -> CustomResponseParser String a -> IO ( Result b )
 runRequest request responseParser = do
     curl <- CU.initialize
-    parseResponse _customObjectFactory _customObjectDAO .  extractResponse <$> 
+    applyResultP <$> parseResponse _customObjectFactory _customObjectDAO .  extractResponse <$> 
         CU.do_curl_ curl "http://www.livejournal.com/interface/flat" curlOptions
     where
         _customObjectFactory = customObjectFactory responseParser
@@ -36,7 +46,7 @@ runRequest request responseParser = do
         makeRequest = CurlPostFields . DL.map makeParamNV . params
         makeParamNV (RequestParam name value) = name ++ "=" ++ value
 
-runRequestSession :: Session -> LJRequest -> CustomResponseParser String b -> IO ( Result (ParseResult String b) )
+runRequestSession :: (ResponseTransformer a b) => Session -> LJRequest -> CustomResponseParser String a -> IO ( Result b )
 runRequestSession Anonymous request responseParser = runRequest request responseParser
 runRequestSession (Authenticated password) request responseParser =
     prepareChallenge password >>= DM.maybe emptyParser runRequest'
@@ -50,18 +60,27 @@ runRequestSession (Authenticated password) request responseParser =
                     ("auth_response", auth_response),
                     ("auth_method","challenge")] ++ LJR.params request
 
+newtype ChalString a = ChalString { getChStr :: a }
+
+instance ResponseTransformer ( ChalString String ) (Maybe String) where
+    transform (simpleMap, _, _) = DMP.lookup "challenge" simpleMap
+            
+
 prepareChallenge :: String -> IO (Maybe (String, String))
 prepareChallenge password = do
-    getChallenge . getLJResult <$> runRequest request (CRP noFactory noUpdate)
+    ljRes <- getLJResult <$> (runRequest request (CRP noFactory noUpdate) :: IO (Result (Maybe String)))
+    Prelude.putStrLn . show $ ljRes
+    return Nothing
+    --handleResponse <$> (runRequest request (CRP noFactory noUpdate) :: IO (Result (Maybe String)))
     where
+        handleResponse src = handleResponse' $ getLJResult src
+        handleResponse' (Left err) = Nothing
+        handleResponse' (Right res) = makeChallengePair <$> res
         request = makeRequest [("mode","getchallenge")]
-        result chal = ( chal, hashcode chal )
+        noFactory :: String -> Maybe ( ChalString String )
+        noFactory = \_ -> Nothing
+        noUpdate = \_ _ _ _ -> Nothing
+        makeChallengePair chal = ( chal, hashcode chal )
         md5Pass = MD5.md5sum $ BStr.pack password
         hashcode chal = MD5.md5sum . BStr.pack $ chal ++ md5Pass
-        getChallenge (Left _) = Nothing
-        getChallenge (Right (simpleMap, _, _)) = do 
-            chlg <- DMP.lookup "challenge" simpleMap
-            return $ result chlg
-        noFactory = \_ -> Nothing
-        noUpdate = \_ _ _ -> Nothing
 
