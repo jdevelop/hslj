@@ -68,10 +68,7 @@ instance ResponseTransformer ( ChalString String ) (Maybe String) where
 
 prepareChallenge :: String -> IO (Maybe (String, String))
 prepareChallenge password = do
-    ljRes <- getLJResult <$> (runRequest request (CRP noFactory noUpdate) :: IO (Result (Maybe String)))
-    Prelude.putStrLn . show $ ljRes
-    return Nothing
-    --handleResponse <$> (runRequest request (CRP noFactory noUpdate) :: IO (Result (Maybe String)))
+    handleResponse <$> (runRequest request (CRP noFactory noUpdate) :: IO (Result (Maybe String)))
     where
         handleResponse src = handleResponse' $ getLJResult src
         handleResponse' (Left err) = Nothing

@@ -1,3 +1,5 @@
+{-# LANGUAGE NoMonomorphismRestriction,FlexibleContexts,
+             TypeSynonymInstances,FlexibleInstances,MultiParamTypeClasses #-}
 module LiveJournal.Login (
     login,
     loginExt,
@@ -58,13 +60,16 @@ loginObjectUpdater "mood" "name" value obj = Just $ obj { moodName = value }
 loginObjectUpdater "mood" "parent" value obj = Just $ obj { moodParent = read value }
 loginObjectUpdater _ _ _ _ = Nothing
 
+instance ResponseTransformer LoginResponseData LJLoginResponse where
+    transform (simpleMap, enumMap, objectMap) = undefined
+
 loginExt :: LJLoginRequest -> IO ( Result LJLoginResponse )
 loginExt request =
     prepareChallenge ( password request ) >>= DM.maybe emptyResponse login'
     where
         emptyResponse = return ( makeError NoChallenge )
         login' (chal, auth_response) = 
-            handleResp . getLJResult <$> runRequest request' (CRP loginObjectFactory loginObjectUpdater)
+            runRequest request' (CRP loginObjectFactory loginObjectUpdater) :: IO (Result LJLoginResponse)
             where
                 params = DL.concat [
                         [
@@ -81,4 +86,3 @@ loginExt request =
                          ]
                 request' = makeRequest params
                 makeTupleSArr = ( return . ) . (,)
-                handleResp = undefined

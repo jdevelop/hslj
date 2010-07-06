@@ -86,7 +86,7 @@ objectParamParser = do
                         updObjHint = updateObject objectType propertyName propertyValue
 
 responseParser =
-    try ( objectParamParser <|> enumeratedParser <|> primitiveParser ) *> TP.optional TP.newline
+    try objectParamParser <|> (try enumeratedParser <|> primitiveParser ) *> TP.optional TP.newline
 
 finishData = do
     (RPS simpleMap listMap objectMap _ _ ) <- TP.getState
@@ -99,5 +99,5 @@ parseResponse newObject updateObject =
         parsecResult = head . TP.runPT (TP.manyTill responseParser TP.eof >> finishData) 
             (RPS DM.empty DM.empty DM.empty newObject updateObject) ""
         handleParseResult (Left parseError) = makeError $ 
-            WrongResponseFormat ( concatMap messageString $ errorMessages parseError )
+            WrongResponseFormat ( concatMap ( (++ "\n") . messageString ) $ errorMessages parseError )
         handleParseResult (Right result) = makeResult result
