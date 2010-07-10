@@ -19,6 +19,7 @@ import Control.Monad
 import Control.Monad.Trans
 
 import Data.Maybe as DM
+import Data.Map as DMP
 import Data.List as DL
 
 import Text.Parsec as TP
@@ -61,7 +62,10 @@ loginObjectUpdater "mood" "parent" value obj = Just $ obj { moodParent = read va
 loginObjectUpdater _ _ _ _ = Nothing
 
 instance ResponseTransformer LoginResponseData LJLoginResponse where
-    transform (simpleMap, enumMap, objectMap) = undefined
+    transform (simpleMap, enumMap, objectMap) = maybe (makeErrorStr $ "Can't create response " ++ show simpleMap) (makeResult) $ do
+        username <- DMP.lookup "name" simpleMap
+        communities <- DMP.lookup "access" enumMap
+        return $ LoginResponse username Anonymous communities
 
 loginExt :: LJLoginRequest -> IO ( Result LJLoginResponse )
 loginExt request =

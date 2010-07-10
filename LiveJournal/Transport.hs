@@ -1,6 +1,12 @@
 {-# LANGUAGE NoMonomorphismRestriction,FlexibleContexts,
              TypeSynonymInstances,FlexibleInstances,MultiParamTypeClasses #-}
-module LiveJournal.Transport where
+module LiveJournal.Transport (
+    runRequest,
+    runRequestSession,
+    prepareChallenge,
+    CustomResponseParser (CRP),
+    ResponseTransformer(transform)
+) where
 
 import Control.Applicative
 import Data.Maybe as DM
@@ -23,7 +29,7 @@ data CustomResponseParser a b = CRP {
     }
 
 class ResponseTransformer a b where
-    transform :: ParseResult String a -> b
+    transform :: ParseResult String a -> Result b
 
 extractResponse :: CurlResponse_ [(String,String)] BStrU.ByteString -> BStrU.ByteString
 extractResponse = respBody
@@ -32,7 +38,7 @@ applyResultP :: (ResponseTransformer a b) => Result (ParseResult String a) -> Re
 applyResultP = applyResultP' . getLJResult
     where
         applyResultP' (Left err) = makeError err
-        applyResultP' (Right s) = checkResultState s ( makeResult . transform )
+        applyResultP' (Right s) = checkResultState s ( transform )
         checkResultState s@(simpleMap,_,_) f = maybe ( f s ) makeErrorStr $ DMP.lookup "errmsg" simpleMap
 
 runRequest :: (ResponseTransformer a b) => LJRequest -> CustomResponseParser String a -> IO ( Result b )
@@ -64,7 +70,7 @@ runRequestSession (Authenticated password) request responseParser =
 newtype ChalString a = ChalString { getChStr :: a }
 
 instance ResponseTransformer ( ChalString String ) (Maybe String) where
-    transform (simpleMap, _, _) = DMP.lookup "challenge" simpleMap
+    transform (simpleMap, _, _) = makeResult $ DMP.lookup "challenge" simpleMap
             
 
 prepareChallenge :: String -> IO (Maybe (String, String))

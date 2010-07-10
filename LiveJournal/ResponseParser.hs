@@ -40,6 +40,7 @@ enumeratedParser = do
     TP.many TP.digit
     TP.newline
     paramValue <- TP.many notNewlineP
+    TP.optional TP.newline
     currentState <- TP.getState
     let listMap' = DM.alter ( updateMapKey paramValue ) paramName $ listMap currentState
     TP.putState $ currentState { listMap = listMap' }
@@ -52,6 +53,7 @@ primitiveParser = do
     paramName <- TP.many notNewlineP
     TP.newline
     paramValue <- TP.many notNewlineP
+    TP.optional TP.newline
     currentState <- TP.getState
     let simpleMap' = DM.insert paramName paramValue $ simpleMap currentState
     TP.putState $ currentState { simpleMap = simpleMap' }
@@ -65,6 +67,7 @@ objectParamParser = do
     TP.newline
     propertyValue <- TP.many notNewlineP
     currentState <- TP.getState
+    TP.optional TP.newline
     let tmpMap = objectMap currentState
         objectMap' = DM.alter ( updateMapKey currentState objectType objectId propertyName propertyValue ) objectType tmpMap
     TP.putState $ currentState { objectMap = objectMap' }
@@ -86,7 +89,7 @@ objectParamParser = do
                         updObjHint = updateObject objectType propertyName propertyValue
 
 responseParser =
-    try objectParamParser <|> (try enumeratedParser <|> primitiveParser ) *> TP.optional TP.newline
+    try objectParamParser <|> (try enumeratedParser <|> primitiveParser)
 
 finishData = do
     (RPS simpleMap listMap objectMap _ _ ) <- TP.getState
