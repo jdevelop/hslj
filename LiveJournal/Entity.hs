@@ -5,7 +5,7 @@ import Data.Either
 
 newtype Result a = Result { getLJResult :: Either LJError a } deriving (Show)
 
-makeErrorStr ::  String -> Result (Either LJError a)
+makeErrorStr ::  String -> Result a
 makeErrorStr = Result . Left . SimpleError
 
 makeError ::  LJError -> Result a

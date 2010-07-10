@@ -32,7 +32,8 @@ applyResultP :: (ResponseTransformer a b) => Result (ParseResult String a) -> Re
 applyResultP = applyResultP' . getLJResult
     where
         applyResultP' (Left err) = makeError err
-        applyResultP' (Right s) = makeResult $ transform s
+        applyResultP' (Right s) = checkResultState s ( makeResult . transform )
+        checkResultState s@(simpleMap,_,_) f = maybe ( f s ) makeErrorStr $ DMP.lookup "errmsg" simpleMap
 
 runRequest :: (ResponseTransformer a b) => LJRequest -> CustomResponseParser String a -> IO ( Result b )
 runRequest request responseParser = do
