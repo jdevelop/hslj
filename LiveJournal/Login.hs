@@ -14,7 +14,7 @@ import LiveJournal.Transport
 import LiveJournal.Request
 import LiveJournal.ResponseParser as LJRP
 
-import Control.Applicative
+import Control.Applicative hiding ((<|>))
 import Control.Monad
 import Control.Monad.Trans
 
@@ -23,6 +23,7 @@ import Data.Map as DMP
 import Data.List as DL
 
 import Text.Parsec as TP
+import Text.Parsec.ByteString
 
 data LJLoginRequest = LoginRequest { 
                         user :: String,
@@ -38,34 +39,51 @@ type Community = String
 data LJLoginResponse = LoginResponse { 
                                        ljUsername :: String,
                                        ljSession :: Session, 
-                                       ljCommunities :: [Community]
-                                     }
+                                       ljCommunities :: [Community],
+                                       ljMoods :: [LoginResponseData],
+                                       ljGroups :: [LoginResponseData],
+                                       ljMenus :: [LoginResponseData]
+                                     } deriving (Show)
 
 data LoginResponseData = Mood { moodId, moodParent :: Int, moodName :: String } |
-                         Group { groupName :: String, groupSortOrder :: String } |
-                         Menu { menuUrl, menuText :: String }
-
-instance Show LJLoginResponse where
-    show (LoginResponse uname session comms) = uname ++ show comms
+                         Group { groupName :: String, groupSortOrder :: Int, groupPublic :: Bool } |
+                         Menu { menuId :: Int, menuItems :: DMP.Map Int LoginResponseData } |
+                         MenuItem { menuItem, menuSub :: Int, menuUrl, menuText :: String } deriving (Show)
 
 login :: String -> String -> IO ( Result LJLoginResponse )
-login username password = loginExt $ LoginRequest username password Nothing False False False
+login username password = loginExt $ LoginRequest username password Nothing True True True
 
 loginObjectFactory :: ObjectFactory LoginResponseData
 loginObjectFactory "mood" = Just $ Mood 0 0 ""
+loginObjectFactory "frgrp" = Just $ Group "" 0 False
+loginObjectFactory "menu" = Just $ Menu 0 DMP.empty
 loginObjectFactory _ = Nothing
 
 loginObjectUpdater :: ObjectUpdater LoginResponseData
 loginObjectUpdater "mood" "id" value obj = Just $ obj { moodId = read value }
 loginObjectUpdater "mood" "name" value obj = Just $ obj { moodName = value }
 loginObjectUpdater "mood" "parent" value obj = Just $ obj { moodParent = read value }
+loginObjectUpdater "frgrp" "name" value obj = Just $ obj { groupName = value }
+loginObjectUpdater "frgrp" "sortorder" value obj = Just $ obj { groupSortOrder = read value }
+loginObjectUpdater "frgrp" "public" value obj = Just $ obj { groupPublic = "1" == value }
+loginObjectUpdater "menu" menuParam value obj = 
+    case parseResult of
+        (Left err) -> Nothing
+        (Right obj') -> Just obj'
+    where
+        parseResult = head $ TP.runPT parseMenuItem (obj, value) "" menuParam
 loginObjectUpdater _ _ _ _ = Nothing
 
 instance ResponseTransformer LoginResponseData LJLoginResponse where
-    transform (simpleMap, enumMap, objectMap) = maybe (makeErrorStr $ "Can't create response " ++ show simpleMap) (makeResult) $ do
+    transform (simpleMap, enumMap, objectMap) = 
+        maybe (makeErrorStr $ "Can't create response " ++ show simpleMap) (makeResult) $ do
         username <- DMP.lookup "name" simpleMap
-        communities <- DMP.lookup "access" enumMap
-        return $ LoginResponse username Anonymous communities
+        return $ LoginResponse username Anonymous communities moods groups menus
+        where 
+            communities = maybe [] id $  DMP.lookup "access" enumMap
+            moods = maybe [] id $ DMP.elems <$> DMP.lookup "mood" objectMap
+            groups = maybe [] id $  DMP.elems <$> DMP.lookup "frgrp" objectMap
+            menus = maybe [] id $ DMP.elems <$> DMP.lookup "menu" objectMap
 
 loginExt :: LJLoginRequest -> IO ( Result LJLoginResponse )
 loginExt request =
@@ -73,8 +91,11 @@ loginExt request =
     where
         emptyResponse = return ( makeError NoChallenge )
         login' (chal, auth_response) = 
-            runRequest request' (CRP loginObjectFactory loginObjectUpdater) :: IO (Result LJLoginResponse)
+            fixResponse <$> (runRequest request' (CRP loginObjectFactory loginObjectUpdater) :: IO (Result LJLoginResponse))
             where
+                fixResponse result = case getLJResult result of
+                    Left err -> makeError err
+                    Right res -> makeResult $ res { ljSession = Authenticated (password request) }
                 params = DL.concat [
                         [
                             ("mode","login"), 
@@ -90,3 +111,25 @@ loginExt request =
                          ]
                 request' = makeRequest params
                 makeTupleSArr = ( return . ) . (,)
+
+parseMenuItem =
+    try (parseMenuItemProperty "_text" updateText) <|> 
+        ( try (parseMenuItemProperty "_url" updateUrl) <|> parseMenuItemProperty "_sub" updateSub )
+    where
+        updateText txt menyItemP = menyItemP { menuText = txt }
+        updateUrl txt menyItemP = menyItemP { menuUrl = txt }
+        updateSub txt menyItemP = menyItemP { menuSub = read txt }
+
+parseMenuItemProperty suffix f = do
+    TP.char '_'
+    itemNum <- liftM (read) $ TP.many TP.digit
+    TP.string suffix
+    (menu, value) <- getState
+    return $ updateMenuMap menu itemNum (f value)
+
+updateMenuMap menu itemNum f  = 
+    let newMap = DMP.alter updFunc itemNum ( menuItems menu )
+    in menu { menuItems = newMap }
+    where
+        updFunc Nothing = updFunc . Just $ MenuItem 0 0 "" ""
+        updFunc (Just menuItem) = Just (f menuItem)

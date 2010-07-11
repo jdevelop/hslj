@@ -35,7 +35,7 @@ notNewlineP = TP.noneOf "\r\n"
 
 enumeratedParser :: (Stream s m Char) => ParsecT s (ResponseParserState String b) m ()
 enumeratedParser = do 
-    paramName <- TP.many (TP.noneOf "_")
+    paramName <- TP.many (TP.noneOf "_\r\n")
     TP.char '_'
     TP.many TP.digit
     TP.newline
