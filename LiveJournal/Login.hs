@@ -51,7 +51,7 @@ data LoginResponseData = Mood { moodId, moodParent :: Int, moodName :: String } 
                          MenuItem { menuItem, menuSub :: Int, menuUrl, menuText :: String } deriving (Show)
 
 login :: String -> String -> IO ( Result LJLoginResponse )
-login username password = loginExt $ LoginRequest username password Nothing True True True
+login username password = loginExt $ LoginRequest username password Nothing False False False
 
 loginObjectFactory :: ObjectFactory LoginResponseData
 loginObjectFactory "mood" = Just $ Mood 0 0 ""
@@ -68,7 +68,7 @@ loginObjectUpdater "frgrp" "sortorder" value obj = Just $ obj { groupSortOrder =
 loginObjectUpdater "frgrp" "public" value obj = Just $ obj { groupPublic = "1" == value }
 loginObjectUpdater "menu" menuParam value obj = 
     case parseResult of
-        (Left err) -> Nothing
+        (Left err) -> Just obj
         (Right obj') -> Just obj'
     where
         parseResult = head $ TP.runPT parseMenuItem (obj, value) "" menuParam
@@ -121,7 +121,6 @@ parseMenuItem =
         updateSub txt menyItemP = menyItemP { menuSub = read txt }
 
 parseMenuItemProperty suffix f = do
-    TP.char '_'
     itemNum <- liftM (read) $ TP.many TP.digit
     TP.string suffix
     (menu, value) <- getState
@@ -131,5 +130,5 @@ updateMenuMap menu itemNum f  =
     let newMap = DMP.alter updFunc itemNum ( menuItems menu )
     in menu { menuItems = newMap }
     where
-        updFunc Nothing = updFunc . Just $ MenuItem 0 0 "" ""
+        updFunc Nothing = updFunc . Just $ MenuItem itemNum 0 "" ""
         updFunc (Just menuItem) = Just (f menuItem)
