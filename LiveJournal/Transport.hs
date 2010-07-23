@@ -71,7 +71,6 @@ newtype ChalString a = ChalString { getChStr :: a }
 
 instance ResponseTransformer ( ChalString String ) (Maybe String) where
     transform (simpleMap, _, _) = makeResult $ DMP.lookup "challenge" simpleMap
-            
 
 prepareChallenge :: String -> IO (Maybe (String, String))
 prepareChallenge password = do

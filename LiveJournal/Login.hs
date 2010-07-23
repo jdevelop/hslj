@@ -42,13 +42,16 @@ data LJLoginResponse = LoginResponse {
                                        ljCommunities :: [Community],
                                        ljMoods :: [LoginResponseData],
                                        ljGroups :: [LoginResponseData],
-                                       ljMenus :: [LoginResponseData]
+                                       ljMenus :: [LoginResponseData],
+                                       ljPics :: [LoginResponseData]
                                      } deriving (Show)
 
 data LoginResponseData = Mood { moodId, moodParent :: Int, moodName :: String } |
                          Group { groupName :: String, groupSortOrder :: Int, groupPublic :: Bool } |
                          Menu { menuId :: Int, menuItems :: DMP.Map Int LoginResponseData } |
-                         MenuItem { menuItem, menuSub :: Int, menuUrl, menuText :: String } deriving (Show)
+                         MenuItem { menuItem, menuSub :: Int, menuUrl, menuText :: String } | 
+                         Pickw { pickwUrl :: String, pickwKeyword :: [String] } 
+                         deriving (Show)
 
 login :: String -> String -> IO ( Result LJLoginResponse )
 login username password = loginExt $ LoginRequest username password Nothing False False False
@@ -78,12 +81,17 @@ instance ResponseTransformer LoginResponseData LJLoginResponse where
     transform (simpleMap, enumMap, objectMap) = 
         maybe (makeErrorStr $ "Can't create response " ++ show simpleMap) (makeResult) $ do
         username <- DMP.lookup "name" simpleMap
-        return $ LoginResponse username Anonymous communities moods groups menus
+        return $ LoginResponse username Anonymous communities moods groups menus pickws
         where 
-            communities = maybe [] id $  DMP.lookup "access" enumMap
+            communities = maybe [] (DL.concat . DMP.elems) $  DMP.lookup "access" enumMap
             moods = maybe [] id $ DMP.elems <$> DMP.lookup "mood" objectMap
             groups = maybe [] id $  DMP.elems <$> DMP.lookup "frgrp" objectMap
             menus = maybe [] id $ DMP.elems <$> DMP.lookup "menu" objectMap
+            pickws = foldWithKey makePickws [] pickwUrls
+            pickwKeys = maybe DMP.empty id $ DMP.lookup "pickw" enumMap
+            pickwUrls = maybe DMP.empty id $ DMP.lookup "pickwurl" enumMap
+            makePickws idx [url] = let keywords = concat . maybeToList $ DMP.lookup idx pickwKeys
+                                    in ( Pickw url keywords : )
 
 loginExt :: LJLoginRequest -> IO ( Result LJLoginResponse )
 loginExt request =

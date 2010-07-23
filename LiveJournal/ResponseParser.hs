@@ -22,10 +22,10 @@ import LiveJournal.Entity
 
 type ObjectFactory b = String -> Maybe b
 type ObjectUpdater b = String -> String -> String -> b -> Maybe b
-type ParseResult a b = (DM.Map String String, DM.Map String [a], DM.Map String ( DM.Map Int b ) )
+type ParseResult a b = (DM.Map String String, DM.Map String (DM.Map Int [a]), DM.Map String ( DM.Map Int b ) )
 
 data ResponseParserState a b = RPS { simpleMap :: DM.Map String String,
-                                     listMap :: DM.Map String [a],
+                                     listMap :: DM.Map String (DM.Map Int [a]),
                                      objectMap :: DM.Map String (DM.Map Int b),
                                      newObjectF :: ObjectFactory b,
                                      updateObjectF :: ObjectUpdater b
@@ -37,16 +37,18 @@ enumeratedParser :: (Stream s m Char) => ParsecT s (ResponseParserState String b
 enumeratedParser = do 
     paramName <- TP.many (TP.noneOf "_\r\n")
     TP.char '_'
-    TP.many TP.digit
+    idx <- liftM read $ TP.many TP.digit
     TP.newline
     paramValue <- TP.many notNewlineP
     TP.optional TP.newline
     currentState <- TP.getState
-    let listMap' = DM.alter ( updateMapKey paramValue ) paramName $ listMap currentState
+    let listMap' = DM.alter ( updateMapKey idx paramValue ) paramName $ listMap currentState
     TP.putState $ currentState { listMap = listMap' }
     where
-        updateMapKey value (Just params) = Just (value:params)
-        updateMapKey value Nothing = Just [value]
+        updateMapKey idx value (Just curMap)= Just $ DM.alter (alterArray value) idx curMap
+        updateMapKey idx value Nothing = Just $ singleton idx [value]
+        alterArray value Nothing = Just [value]
+        alterArray value (Just items) = Just (value:items)
 
 primitiveParser :: (Stream s m Char) => ParsecT s (ResponseParserState a b) m ()
 primitiveParser = do
@@ -93,7 +95,7 @@ responseParser =
 
 finishData = do
     (RPS simpleMap listMap objectMap _ _ ) <- TP.getState
-    return (simpleMap, DM.map DL.reverse listMap, objectMap)
+    return (simpleMap, listMap, objectMap)
 
 parseResponse :: (Stream s [] Char) => ObjectFactory b -> ObjectUpdater b -> s -> Result (ParseResult String b)
 parseResponse newObject updateObject = 
