@@ -43,7 +43,9 @@ data LJLoginResponse = LoginResponse {
                                        ljMoods :: [LoginResponseData],
                                        ljGroups :: [LoginResponseData],
                                        ljMenus :: [LoginResponseData],
-                                       ljPics :: [LoginResponseData]
+                                       ljPics :: [LoginResponseData],
+                                       ljDefaultPicwUrl :: Maybe String,
+                                       ljFastServer :: Bool
                                      } deriving (Show)
 
 data LoginResponseData = Mood { moodId, moodParent :: Int, moodName :: String } |
@@ -81,17 +83,20 @@ instance ResponseTransformer LoginResponseData LJLoginResponse where
     transform (simpleMap, enumMap, objectMap) = 
         maybe (makeErrorStr $ "Can't create response " ++ show simpleMap) (makeResult) $ do
         username <- DMP.lookup "name" simpleMap
-        return $ LoginResponse username Anonymous communities moods groups menus pickws
+        return $ LoginResponse username Anonymous communities moods groups menus pickws defaultPicwUrl fastServer
         where 
             communities = maybe [] (DL.concat . DMP.elems) $  DMP.lookup "access" enumMap
-            moods = maybe [] id $ DMP.elems <$> DMP.lookup "mood" objectMap
-            groups = maybe [] id $  DMP.elems <$> DMP.lookup "frgrp" objectMap
-            menus = maybe [] id $ DMP.elems <$> DMP.lookup "menu" objectMap
+            moods = DM.maybe [] id $ DMP.elems <$> DMP.lookup "mood" objectMap
+            groups = DM.maybe [] id $  DMP.elems <$> DMP.lookup "frgrp" objectMap
+            menus = DM.maybe [] id $ DMP.elems <$> DMP.lookup "menu" objectMap
             pickws = foldWithKey makePickws [] pickwUrls
             pickwKeys = maybe DMP.empty id $ DMP.lookup "pickw" enumMap
             pickwUrls = maybe DMP.empty id $ DMP.lookup "pickwurl" enumMap
             makePickws idx [url] = let keywords = concat . maybeToList $ DMP.lookup idx pickwKeys
                                     in ( Pickw url keywords : )
+            defaultPicwUrl = DMP.lookup "defaultpicurl" simpleMap
+            fastServer = DM.maybe False (const True) $ DMP.lookup "fastserver" simpleMap
+
 
 loginExt :: LJLoginRequest -> IO ( Result LJLoginResponse )
 loginExt request =
