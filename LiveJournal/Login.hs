@@ -3,7 +3,8 @@
 module LiveJournal.Login (
     login,
     loginExt,
-    LJLoginRequest(..)
+    LJLoginRequest(..),
+    LJLoginResponse(..)
 )
 where 
 

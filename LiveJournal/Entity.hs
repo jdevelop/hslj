@@ -1,15 +1,17 @@
 module LiveJournal.Entity where
 
 import LiveJournal.Error
-import Data.Either
+import Control.Monad.Error
 
-newtype Result a = Result { getLJResult :: Either LJError a } deriving (Show)
+type Result m a = ErrorT LJError m a
 
-makeErrorStr ::  String -> Result a
-makeErrorStr = Result . Left . SimpleError
+type IOResult a = Result IO a
 
-makeError ::  LJError -> Result a
-makeError = Result . Left
+makeErrorStr :: String -> IOResult a
+makeErrorStr = ErrorT . return . Left . SimpleError
 
-makeResult :: a -> Result a
-makeResult = Result . Right
+makeError :: (Monad m) =>  LJError -> Result m a
+makeError = ErrorT . return . Left
+
+makeResult :: (Monad m) => a -> Result m a
+makeResult = ErrorT . return . Right

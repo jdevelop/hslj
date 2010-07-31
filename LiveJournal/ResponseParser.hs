@@ -97,7 +97,7 @@ finishData = do
     (RPS simpleMap listMap objectMap _ _ ) <- TP.getState
     return (simpleMap, listMap, objectMap)
 
-parseResponse :: (Stream s [] Char) => ObjectFactory b -> ObjectUpdater b -> s -> Result (ParseResult String b)
+parseResponse :: (Stream s [] Char, Monad m) => ObjectFactory b -> ObjectUpdater b -> s -> Result m (ParseResult String b)
 parseResponse newObject updateObject = 
     handleParseResult . parsecResult
     where
