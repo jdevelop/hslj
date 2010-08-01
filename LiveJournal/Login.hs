@@ -56,7 +56,7 @@ data LoginResponseData = Mood { moodId, moodParent :: Int, moodName :: String } 
                          Pickw { pickwUrl :: String, pickwKeyword :: [String] } 
                          deriving (Show)
 
-login :: String -> String -> IO ( Result LJLoginResponse )
+login :: String -> String -> IOResult LJLoginResponse
 login username password = loginExt $ LoginRequest username password Nothing False False False
 
 loginObjectFactory :: ObjectFactory LoginResponseData
@@ -99,17 +99,15 @@ instance ResponseTransformer LoginResponseData LJLoginResponse where
             fastServer = DM.maybe False (const True) $ DMP.lookup "fastserver" simpleMap
 
 
-loginExt :: LJLoginRequest -> IO ( Result LJLoginResponse )
+loginExt :: LJLoginRequest -> IOResult LJLoginResponse
 loginExt request =
     prepareChallenge ( password request ) >>= DM.maybe emptyResponse login'
     where
-        emptyResponse = return ( makeError NoChallenge )
-        login' (chal, auth_response) = 
-            fixResponse <$> (runRequest request' (CRP loginObjectFactory loginObjectUpdater) :: IO (Result LJLoginResponse))
+        emptyResponse = makeError NoChallenge
+        login' (chal, auth_response) = do
+            result <- (runRequest request' (CRP loginObjectFactory loginObjectUpdater) :: IOResult LJLoginResponse)
+            return $ result { ljSession = Authenticated ( password request ) }
             where
-                fixResponse result = case getLJResult result of
-                    Left err -> makeError err
-                    Right res -> makeResult $ res { ljSession = Authenticated (password request) }
                 params = DL.concat [
                         [
                             ("mode","login"), 
