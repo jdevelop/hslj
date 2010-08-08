@@ -4,7 +4,9 @@ module LiveJournal.Login (
     login,
     loginExt,
     LJLoginRequest(..),
-    LJLoginResponse(..)
+    LJLoginResponse(..),
+    loginObjectUpdater,
+    loginObjectFactory
 )
 where 
 
@@ -35,37 +37,30 @@ data LJLoginRequest = LoginRequest {
                         pickwurls :: Bool
                       }
 
-type Community = String
 
 data LJLoginResponse = LoginResponse { 
                                        ljUsername :: String,
                                        ljSession :: Session, 
                                        ljCommunities :: [Community],
-                                       ljMoods :: [LoginResponseData],
-                                       ljGroups :: [LoginResponseData],
-                                       ljMenus :: [LoginResponseData],
-                                       ljPics :: [LoginResponseData],
+                                       ljMoods :: [ResponseData],
+                                       ljGroups :: [ResponseData],
+                                       ljMenus :: [ResponseData],
+                                       ljPics :: [ResponseData],
                                        ljDefaultPicwUrl :: Maybe String,
                                        ljFastServer :: Bool
                                      } deriving (Show)
 
-data LoginResponseData = Mood { moodId, moodParent :: Int, moodName :: String } |
-                         Group { groupName :: String, groupSortOrder :: Int, groupPublic :: Bool } |
-                         Menu { menuId :: Int, menuItems :: DMP.Map Int LoginResponseData } |
-                         MenuItem { menuItem, menuSub :: Int, menuUrl, menuText :: String } | 
-                         Pickw { pickwUrl :: String, pickwKeyword :: [String] } 
-                         deriving (Show)
 
 login :: String -> String -> IOResult LJLoginResponse
 login username password = loginExt $ LoginRequest username password Nothing False False False
 
-loginObjectFactory :: ObjectFactory LoginResponseData
+loginObjectFactory :: ObjectFactory ResponseData
 loginObjectFactory "mood" = Just $ Mood 0 0 ""
 loginObjectFactory "frgrp" = Just $ Group "" 0 False
 loginObjectFactory "menu" = Just $ Menu 0 DMP.empty
 loginObjectFactory _ = Nothing
 
-loginObjectUpdater :: ObjectUpdater LoginResponseData
+loginObjectUpdater :: ObjectUpdater ResponseData
 loginObjectUpdater "mood" "id" value obj = Just $ obj { moodId = read value }
 loginObjectUpdater "mood" "name" value obj = Just $ obj { moodName = value }
 loginObjectUpdater "mood" "parent" value obj = Just $ obj { moodParent = read value }
@@ -80,23 +75,23 @@ loginObjectUpdater "menu" menuParam value obj =
         parseResult = head $ TP.runPT parseMenuItem (obj, value) "" menuParam
 loginObjectUpdater _ _ _ _ = Nothing
 
-instance ResponseTransformer LoginResponseData LJLoginResponse where
+instance ResponseTransformer ResponseData LJLoginResponse where
     transform (simpleMap, enumMap, objectMap) = 
-        maybe (makeErrorStr $ "Can't create response " ++ show simpleMap) (makeResult) $ do
+        maybe (makeErrorStr $ "Can't create response " ++ show simpleMap) makeResult $ do
         username <- DMP.lookup "name" simpleMap
         return $ LoginResponse username Anonymous communities moods groups menus pickws defaultPicwUrl fastServer
         where 
             communities = maybe [] (DL.concat . DMP.elems) $  DMP.lookup "access" enumMap
-            moods = DM.maybe [] id $ DMP.elems <$> DMP.lookup "mood" objectMap
-            groups = DM.maybe [] id $  DMP.elems <$> DMP.lookup "frgrp" objectMap
-            menus = DM.maybe [] id $ DMP.elems <$> DMP.lookup "menu" objectMap
+            moods = fromMaybe [] $ DMP.elems <$> DMP.lookup "mood" objectMap
+            groups = fromMaybe [] $  DMP.elems <$> DMP.lookup "frgrp" objectMap
+            menus = fromMaybe [] $ DMP.elems <$> DMP.lookup "menu" objectMap
             pickws = foldWithKey makePickws [] pickwUrls
-            pickwKeys = maybe DMP.empty id $ DMP.lookup "pickw" enumMap
-            pickwUrls = maybe DMP.empty id $ DMP.lookup "pickwurl" enumMap
+            pickwKeys = fromMaybe DMP.empty $ DMP.lookup "pickw" enumMap
+            pickwUrls = fromMaybe DMP.empty $ DMP.lookup "pickwurl" enumMap
             makePickws idx [url] = let keywords = concat . maybeToList $ DMP.lookup idx pickwKeys
                                     in ( Pickw url keywords : )
             defaultPicwUrl = DMP.lookup "defaultpicurl" simpleMap
-            fastServer = DM.maybe False (const True) $ DMP.lookup "fastserver" simpleMap
+            fastServer = isJust $ DMP.lookup "fastserver" simpleMap
 
 
 loginExt :: LJLoginRequest -> IOResult LJLoginResponse
@@ -133,7 +128,7 @@ parseMenuItem =
         updateSub txt menyItemP = menyItemP { menuSub = read txt }
 
 parseMenuItemProperty suffix f = do
-    itemNum <- liftM (read) $ TP.many TP.digit
+    itemNum <- liftM read $ TP.many TP.digit
     TP.string suffix
     (menu, value) <- getState
     return $ updateMenuMap menu itemNum (f value)

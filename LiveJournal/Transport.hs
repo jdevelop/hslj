@@ -39,7 +39,7 @@ applyResultP :: (ResponseTransformer a b) => IOResult (ParseResult String a) -> 
 applyResultP res = liftIO ( runErrorT res ) >>= applyResultP'
     where
         applyResultP' (Left err) = makeError err
-        applyResultP' (Right s) = checkResultState s ( transform )
+        applyResultP' (Right s) = checkResultState s transform
         checkResultState s@(simpleMap,_,_) f = maybe ( f s ) makeErrorStr $ DMP.lookup "errmsg" simpleMap
 
 runRequest :: (ResponseTransformer a b) => LJRequest -> CustomResponseParser String a -> IOResult b
@@ -74,7 +74,7 @@ instance ResponseTransformer ( ChalString String ) (Maybe String) where
     transform (simpleMap, _, _) = makeResult $ DMP.lookup "challenge" simpleMap
 
 prepareChallenge :: String -> IOResult (Maybe (String, String))
-prepareChallenge password = do
+prepareChallenge password =
     makeChallengePair <$> (runRequest request (CRP noFactory noUpdate) :: IOResult (Maybe String))
     where
         request = makeRequest [("mode","getchallenge")]

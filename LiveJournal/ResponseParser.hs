@@ -82,7 +82,7 @@ objectParamParser = do
         updateMapKey (RPS _ _ _ newObject updateObject) 
                      objectType objectId propertyName propertyValue 
                      (Just objTypeMap) = 
-                        Just $ DM.alter ( updExistingObj ) 
+                        Just $ DM.alter updExistingObj
                                objectId objTypeMap
                     where
                         newObjectInst = newObject objectType

@@ -44,6 +44,6 @@ checkFriendStatus session pUsername pLastUpdate pMask =
 instance ResponseTransformer () LJFriendsStatus where
     transform (simpleMap, enumMap, objectMap) = makeResult $ FriendsStatus lastUpdate hasNewEntries desiredDelay
         where
-            lastUpdate = maybe "" id $ DM.lookup "lastupdate" simpleMap
+            lastUpdate = fromMaybe "" $ DM.lookup "lastupdate" simpleMap
             hasNewEntries = maybe False ( "1" == ) $ DM.lookup "new" simpleMap
             desiredDelay = maybe 0 read $ DM.lookup "interval" simpleMap
