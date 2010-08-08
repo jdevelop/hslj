@@ -1,67 +1,88 @@
-module LiveJournal.Transport(
-    Session(..),
+{-# LANGUAGE NoMonomorphismRestriction,FlexibleContexts,
+             TypeSynonymInstances,FlexibleInstances,MultiParamTypeClasses #-}
+module LiveJournal.Transport (
     runRequest,
     runRequestSession,
-    prepareChallenge
-)
-where
+    prepareChallenge,
+    CustomResponseParser (CRP),
+    ResponseTransformer(transform)
+) where
 
-import Data.Maybe
-import Prelude as P
-import Network.Curl
+import Control.Applicative
+import Control.Monad.Error
+import Data.Maybe as DM
+import Data.Map as DMP
+import Data.List as DL
+import Network.Curl as CU
 import Data.ByteString.UTF8 as BStrU
-import Data.ByteString.Lazy.Char8 as BStrL
-import Data.Char as C
-import Data.Digest.Pure.MD5
+import Data.ByteString.Char8 as BStr
+import Data.Digest.OpenSSL.MD5 as MD5
+
+import LiveJournal.Entity
+import LiveJournal.Session as LJS
+import LiveJournal.Request as LJR
+import LiveJournal.ResponseParser as LJRP
 import LiveJournal.Error
-import LiveJournal.Session
-import LiveJournal.Pair
-import Text.ParserCombinators.ReadP as TPR
 
-runRequest :: [Pair] -> IO [Pair]
-runRequest input = do
-    curl <- initialize
-    fmap ( parseResponse . extractResponse ) $ do_curl_ curl "http://www.livejournal.com/interface/flat" curlOptions
-    where
-        curlOptions = joinPairs input:method_POST
-        joinPairs = CurlPostFields . P.map joinPair
-        joinPair = show  -- may be some sort of escaping?
+data CustomResponseParser a b = CRP { 
+    customObjectFactory :: ObjectFactory b,
+    customObjectDAO :: ObjectUpdater b
+    }
 
-runRequestSession :: Session -> [Pair] -> IO [Pair]
-runRequestSession Anonymous pairs = runRequest pairs
-runRequestSession (Authenticated password) pairs = do 
-    challenge <- prepareChallenge password
-    runRequest' pairs challenge
-    where
-        runRequest' pairs Nothing = return []
-        runRequest' pairs (Just (auth_challenge,auth_response) ) =
-            runRequest newPairs
-            where 
-                newPairs = makePairBSValue "auth_challenge" auth_challenge:
-                    makePairBSValue "auth_response" auth_response:
-                    makePair "auth_method" "challenge":
-                    pairs
-
-prepareChallenge :: String -> IO (Maybe (BStrU.ByteString, BStrU.ByteString))
-prepareChallenge password = do
-    response <- runRequest [makePair "mode" "getchallenge"]
-    return . fmap result $ findPair "challenge" response
-    where
-        md5Pass = BStrL.pack . show . md5 $ BStrL.pack password -- have no idea how to force MD5Digest to be converted to lazy bytestring
-        repack = BStrL.fromChunks . (:[])
-        hashcode chal = md5 $ BStrL.concat [chal, md5Pass]
-        result chal = (chal, BStrU.fromString . show . hashcode . repack $ chal )
+class ResponseTransformer a b where
+    transform :: ParseResult String a -> IOResult b
 
 extractResponse :: CurlResponse_ [(String,String)] BStrU.ByteString -> BStrU.ByteString
 extractResponse = respBody
 
-emptyString :: BStrU.ByteString
-emptyString = BStrU.fromString "" 
-
-parseResponse :: BStrU.ByteString -> [Pair]
-parseResponse = buildPairs . clearEmpty
+applyResultP :: (ResponseTransformer a b) => IOResult (ParseResult String a) -> IOResult b
+applyResultP res = liftIO ( runErrorT res ) >>= applyResultP'
     where
-        clearEmpty = P.dropWhile ( == emptyString ) . BStrU.lines
-        buildPairs (name:value:pairs) = Pair name value:buildPairs pairs
-        buildPairs _ = []
+        applyResultP' (Left err) = makeError err
+        applyResultP' (Right s) = checkResultState s transform
+        checkResultState s@(simpleMap,_,_) f = maybe ( f s ) makeErrorStr $ DMP.lookup "errmsg" simpleMap
+
+runRequest :: (ResponseTransformer a b) => LJRequest -> CustomResponseParser String a -> IOResult b
+runRequest request responseParser = do
+    curl <- liftIO CU.initialize
+    result <- liftIO ( CU.do_curl_ curl "http://www.livejournal.com/interface/flat" curlOptions )
+    applyResultP . parseResponse _customObjectFactory _customObjectDAO . extractResponse $ result
+    where
+        _customObjectFactory = customObjectFactory responseParser
+        _customObjectDAO = customObjectDAO responseParser
+        curlOptions = makeRequest request : CU.method_POST
+        makeRequest = CurlPostFields . DL.map makeParamNV . params
+        makeParamNV (RequestParam name value) = name ++ "=" ++ value
+
+runRequestSession :: (ResponseTransformer a b) => Session -> LJRequest -> CustomResponseParser String a -> IOResult b
+runRequestSession Anonymous request responseParser = runRequest request responseParser
+runRequestSession (Authenticated password) request responseParser =
+    prepareChallenge password >>= DM.maybe emptyParser runRequest'
+    where
+        emptyParser = makeError $ WrongResponseFormat "no challenge"
+        runRequest' ( auth_challenge, auth_response ) =
+            runRequest newRequest responseParser
+            where 
+                newRequest = Request $ LJR.makeRequestParams [
+                    ("auth_challenge", auth_challenge),
+                    ("auth_response", auth_response),
+                    ("auth_method","challenge")] ++ LJR.params request
+
+newtype ChalString a = ChalString { getChStr :: a }
+
+instance ResponseTransformer ( ChalString String ) (Maybe String) where
+    transform (simpleMap, _, _) = makeResult $ DMP.lookup "challenge" simpleMap
+
+prepareChallenge :: String -> IOResult (Maybe (String, String))
+prepareChallenge password =
+    makeChallengePair <$> (runRequest request (CRP noFactory noUpdate) :: IOResult (Maybe String))
+    where
+        request = makeRequest [("mode","getchallenge")]
+        noFactory :: String -> Maybe ( ChalString String )
+        noFactory = \_ -> Nothing
+        noUpdate = \_ _ _ _ -> Nothing
+        makeChallengePair Nothing = Nothing
+        makeChallengePair (Just chal) = Just ( chal, hashcode chal )
+        md5Pass = MD5.md5sum $ BStr.pack password
+        hashcode chal = MD5.md5sum . BStr.pack $ chal ++ md5Pass
 

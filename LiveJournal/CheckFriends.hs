@@ -1,32 +1,49 @@
-module LiveJournal.CheckFriends(
-    LastUpdate(..),
-    lastUpdate
+{-# LANGUAGE FlexibleContexts,TypeSynonymInstances,FlexibleInstances,MultiParamTypeClasses #-}
+module LiveJournal.CheckFriends ( 
+    checkFriendStatus,
+    LJFriendsStatus(..)
 )
 where
 
-import LiveJournal.Common
-import LiveJournal.Transport
+import LiveJournal.Request
 import LiveJournal.Error
-import LiveJournal.Pair
-import Data.ByteString.UTF8 as BStr
+import LiveJournal.Session
+import LiveJournal.Transport
+import LiveJournal.Entity
+import LiveJournal.ResponseParser
+import Data.Int
+import Data.Map as DM
+import Data.Maybe
+import Control.Monad
+import Data.List as DL
 
-data LastUpdate = LastUpdate { lastUpdateStr :: String, hasNew, interval :: Int }
 
-lastUpdate :: Session -> String -> String -> Int -> IO (Result LastUpdate)
-lastUpdate Anonymous _ _ _ = return $ Left AuthRequired
-lastUpdate session username lastupdate mask =
-    makeLJCall session [makePair "mode" "checkfriends",
-                        makePair "user" username,
-                        makePair "lastupdate" lastupdate,
-                        makePair "mask" (show mask)] createLastUpdate
+data LJFriendsStatus = FriendsStatus {
+                            ljLastUpdate :: String,
+                            ljHasNewEntries :: Bool,
+                            ljDesiredDelaySec :: Int
+                        } deriving (Show)
+
+emptyCreate :: ObjectFactory ()
+emptyCreate _ = Nothing
+
+emptyUpdate :: ObjectUpdater ()
+emptyUpdate _ _ _ _ = Nothing
+
+checkFriendStatus :: Session -> String -> String -> Maybe Int32 -> IOResult LJFriendsStatus
+checkFriendStatus session pUsername pLastUpdate pMask = 
+    runRequestSession session request (CRP emptyCreate emptyUpdate) :: IOResult LJFriendsStatus
     where
-        createLastUpdate  = hasLastUpdate . newLastUpdate
-        newLastUpdate response = do
-            lastUpdateStr <- findPair "lastupdate" response
-            new <- findPair "new" response
-            interval <- findPair "interval" response
-            return $ LastUpdate (BStr.toString lastUpdateStr) (readBSInt new) (readBSInt interval)
-        hasLastUpdate Nothing = Left WrongResponseFormat
-        hasLastUpdate (Just lastUpdate) = Right lastUpdate
-        readBSInt = read . BStr.toString
+        params = [ ("mode","checkfriends"),
+                   ("user", pUsername),
+                   ("lastupdate", pLastUpdate) ] `mplus`
+                   maybe mzero ( (:[]) . (,) "mask" . show ) pMask
+        request = makeRequest params
 
+
+instance ResponseTransformer () LJFriendsStatus where
+    transform (simpleMap, enumMap, objectMap) = makeResult $ FriendsStatus lastUpdate hasNewEntries desiredDelay
+        where
+            lastUpdate = fromMaybe "" $ DM.lookup "lastupdate" simpleMap
+            hasNewEntries = maybe False ( "1" == ) $ DM.lookup "new" simpleMap
+            desiredDelay = maybe 0 read $ DM.lookup "interval" simpleMap
