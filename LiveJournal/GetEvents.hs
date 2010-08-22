@@ -12,8 +12,12 @@ import Data.DateTime
 import Data.Maybe
 import Data.Map as DM
 import Data.Array as DA
+import Data.Word
 
 import Control.Monad
+
+import Codec.Binary.Url as U
+import Codec.Binary.UTF8.String as SU
 
 data SelectType = Day { year, month, day :: Int } |
                   Sync { lastSync :: String } |
@@ -50,12 +54,12 @@ eventObjectFactory _ = Nothing
 eventObjectUpdater :: ObjectUpdater LJEvent
 eventObjectUpdater "events" "itemid" value obj = Just $ obj { eventId = value }
 eventObjectUpdater "events" "eventtime" value obj = Just $ obj { eventTime = fromMaybe epoch (parseDateTime "" value) }
-eventObjectUpdater "events" "event" value obj = Just $ obj { eventText = value }
+eventObjectUpdater "events" "event" value obj = Just $ obj { eventText = decodeUTF8 value }
 eventObjectUpdater "events" "security" "private" obj = Just $ obj { eventSecurity = Private }
 eventObjectUpdater "events" "security" "public" obj = Just $ obj { eventSecurity = Public }
 eventObjectUpdater "events" "security" _ obj = Just obj
 eventObjectUpdater "events" "allowmask" value obj = Just $ obj { eventSecurity = UserMask $ read value }
-eventObjectUpdater "events" "subject" value obj = Just $ obj { eventSubject = value }
+eventObjectUpdater "events" "subject" value obj = Just $ obj { eventSubject = decodeUTF8 value }
 eventObjectUpdater "events" "poster" value obj = Just $ obj { eventPoster = value }
 eventObjectUpdater "events" "anum" value obj = Just $ obj { eventANum = value }
 eventObjectUpdater "events" "url" value obj = Just $ obj { eventUrl = value }
@@ -63,6 +67,10 @@ eventObjectUpdater "events" "url" value obj = Just $ obj { eventUrl = value }
 eventObjectUpdater "prop" "itemid" value obj = Just $ obj { pItemId = value }
 eventObjectUpdater "prop" "name" value obj = Just $ obj { pName = value }
 eventObjectUpdater "prop" "value" value obj = Just $ obj { pValue = value }
+
+
+decodeUTF8 :: String -> String
+decodeUTF8 = maybe "Encoding error" SU.decode . U.decode
 
 instance ResponseTransformer LJEvent [LJEvent] where
     transform (simpleMap, enumMap, objectMap) = makeResult $ maybe [] createList (DM.lookup "events" objectMap)
@@ -84,6 +92,8 @@ getEvents session username truncate preferSubject noMetadata selectType lineEndi
     runRequestSession session request (CRP eventObjectFactory eventObjectUpdater)
     where
         request = makeRequest $ [ ("mode", "getevents") ] ++
+                    [ ("user", username ) ] ++
+                    [ ("ver", "1") ] ++
                     maybe [] ( (:[]) . (,) "truncate" . show ) truncate ++
                     [
                         makeBool "prefersubject" preferSubject,
