@@ -76,12 +76,12 @@ instance ResponseTransformer LJEvent [LJEvent] where
     transform (simpleMap, enumMap, objectMap) = makeResult $ maybe [] createList (DM.lookup "events" objectMap)
         where
             propsMap = DM.fold makeProps DM.empty $ fromMaybe DM.empty $ DM.lookup "prop" objectMap
-            makeProps propItem res = DM.alter ( alterProp propItem ) ( pItemId propItem ) res
+            makeProps propItem = DM.alter ( alterProp propItem ) ( pItemId propItem )
             alterProp propItem Nothing = Just [ makeLJEventProperty propItem ]
-            alterProp propItem (Just arr) = Just $ (makeLJEventProperty propItem) : arr
+            alterProp propItem (Just arr) = Just $ makeLJEventProperty propItem : arr
             makeLJEventProperty ( PropertyContainer pId pName pValue ) = EventProperty pName pValue
             createList = DM.fold traverse []
-            traverse ljEvt res = (update ljEvt):res
+            traverse ljEvt res = update ljEvt : res
             update ljEvt = fromMaybe ljEvt $ do 
                                 let ljEvtItemId = eventId ljEvt
                                 props <- DM.lookup ljEvtItemId propsMap
@@ -95,10 +95,8 @@ getEvents session username truncate preferSubject noMetadata selectType lineEndi
                     [ ("user", username ) ] ++
                     [ ("ver", "1") ] ++
                     maybe [] ( (:[]) . (,) "truncate" . show ) truncate ++
-                    [
-                        makeBool "prefersubject" preferSubject,
-                        makeBool "noprops" noMetadata
-                    ] ++ 
+                    [   makeBool "prefersubject" preferSubject,
+                        makeBool "noprops" noMetadata ] ++ 
                     makeSelectType selectType ++
                     [ ("lineendings", lineEndingMapping DA.! lineEndings) ] ++
                     [ ("usejournal", username) ]
@@ -117,4 +115,3 @@ getEvents session username truncate preferSubject noMetadata selectType lineEndi
         makeSelectType ( Sync lastSyncP ) = [ ("selecttype","syncitems") ,
                                               ("lastsync", lastSyncP)
                                             ]
-
