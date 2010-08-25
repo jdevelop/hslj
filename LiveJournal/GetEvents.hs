@@ -4,7 +4,7 @@ module LiveJournal.GetEvents (
     LJLineEndings(..),
     LJEventSecurity(..),
     LJEventProperty(..),
-    LJEvent(Event),
+    LJEvent(Event,eventId,eventTime,eventText,eventSecurity,eventSubject,eventANum,eventUrl,eventProperties),
     getEvents
 ) where
 
