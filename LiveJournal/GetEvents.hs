@@ -91,27 +91,27 @@ getEvents :: Session -> String -> Maybe Int -> Bool -> Bool -> SelectType -> LJL
 getEvents session username truncate preferSubject noMetadata selectType lineEndings = 
     runRequestSession session request (CRP eventObjectFactory eventObjectUpdater)
     where
-        request = makeRequest $ [ ("mode", "getevents") ] ++
-                    [ ("user", username ) ] ++
-                    [ ("ver", "1") ] ++
-                    maybe [] ( (:[]) . (,) "truncate" . show ) truncate ++
-                    [   makeBool "prefersubject" preferSubject,
-                        makeBool "noprops" noMetadata ] ++ 
+        request = makeRequest $ [ ("mode", "getevents"),
+                    ( "user", username ),
+                    ( "ver", "1" ) ] ++
+                    paramFromMaybe "truncate" truncate ++
+                    [ makeBool "prefersubject" preferSubject,
+                      makeBool "noprops" noMetadata ] ++ 
                     makeSelectType selectType ++
-                    [ ("lineendings", lineEndingMapping DA.! lineEndings) ] ++
-                    [ ("usejournal", username) ]
-        makeBool name True = ("name","1")
-        makeBool name False = ("name","0")
+                    [ ("lineendings", lineEndingMapping DA.! lineEndings),
+                      ("usejournal", username) ]
+        makeBool name val = ("name", if val then "1" else "0")
         makeSelectType (Day yy mm dd) = [ ("selecttype","day") ,
                                           ("year", show yy) ,
                                           ("month", show mm) ,
                                           ("day", show dd)
                                         ]
         makeSelectType ( LastN howMany beforeDate ) = [ ("selecttype", "lastn") ,
-                                                        ("howmany", show howMany ) ] `mplus` 
-                                                      maybe [] ( (:[]) . (,) "beforedate" ) beforeDate
+                                                        ("howmany", show howMany ) ] ++
+                                                      paramFromMaybe "beforedate" beforeDate
         makeSelectType ( One itemId ) = [ ("selecttype", "one") ,
                                         ("itemid", itemId ) ]
         makeSelectType ( Sync lastSyncP ) = [ ("selecttype","syncitems") ,
                                               ("lastsync", lastSyncP)
                                             ]
+        paramFromMaybe pName = maybe [] ( (:[]) . (,) pName . show )
