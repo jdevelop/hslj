@@ -1,5 +1,12 @@
 {-# LANGUAGE FlexibleContexts,TypeSynonymInstances,FlexibleInstances,MultiParamTypeClasses #-}
-module LiveJournal.GetEvents where
+module LiveJournal.GetEvents (
+    SelectType(..),
+    LJLineEndings(..),
+    LJEventSecurity(..),
+    LJEventProperty(..),
+    LJEvent(Event),
+    getEvents
+) where
 
 import LiveJournal.Transport
 import LiveJournal.ResponseParser
