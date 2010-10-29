@@ -1,5 +1,10 @@
 {-# LANGUAGE FlexibleContexts,TypeSynonymInstances,FlexibleInstances,MultiParamTypeClasses #-}
-module LiveJournal.GetUserTags where
+module LiveJournal.GetUserTags (
+    LJUserTagGroup(..),
+    LJUserTagSecurity(..),
+    LJUserTag(..),
+    getUserTags
+)where
 
 import LiveJournal.Entity as LJE
 import LiveJournal.Request
