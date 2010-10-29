@@ -49,10 +49,11 @@ userTagObjectUpdater "tag" = updateTagProps
     where 
         updateTagProps "name" value obj = Just $ obj { tagName = value }
         updateTagProps "uses" value obj = Just $ obj { tagUsedTotal = read value }
-        updateTagProps "display" "on" obj = Just $ obj { tagDisplay = True }
+        updateTagProps "display" "1" obj = Just $ obj { tagDisplay = True }
         updateTagProps "security" value obj = Just $ obj { tagSecurity = read value }
         updateTagProps "sb_friends" value obj = Just $ obj { tagUsedFriendsOnly = read value }
         updateTagProps "sb_private" value obj = Just $ obj { tagUsedPrivate = read value }
+        updateTagProps "sb_public" value obj = Just $ obj { tagUsedPublic = read value }
         updateTagProps paramName value obj = Just $ either (const obj) id $ runP (tagGroupParser value obj) () "" paramName
 
 tagGroupParser :: (Stream s m Char) => String -> LJUserTag -> ParsecT s u m LJUserTag
