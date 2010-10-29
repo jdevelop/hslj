@@ -19,7 +19,7 @@ friendGroupObjectFactory "frgrp" = loginObjectFactory "frgrp"
 friendGroupObjectFactory _ = Nothing
 
 friendGroupObjectUpdater "frgrp" x y z = loginObjectUpdater "frgrp" x y z
-friendGroupObjectUpdater _ _ _ obj = Just $ obj
+friendGroupObjectUpdater _ _ _ obj = Just obj
 
 instance ResponseTransformer ResponseData [ResponseData] where
     transform (simpleMap, enumMap, objectMap) = makeResult $ fromMaybe [] $ do
@@ -31,7 +31,7 @@ getFriendGroups :: Session -> String -> IOResult [ResponseData]
 getFriendGroups session username = 
     runRequestSession session params (CRP friendGroupObjectFactory friendGroupObjectUpdater)
     where
-        params = makeRequest $ [
+        params = makeRequest [
             ("mode", "getfriendgroups"),
             ("user", username)
             ]
