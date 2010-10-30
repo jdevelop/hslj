@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleContexts,TypeSynonymInstances,FlexibleInstances,MultiParamTypeClasses #-}
-module LiveJournal.GetFriends where
+module LiveJournal.GetFriends (
+    getFriends,
+    getFriendsOf
+) where
 
 import LiveJournal.Request
 import LiveJournal.Error
@@ -62,6 +65,10 @@ instance ResponseTransformer ResponseData LJFriendsResponse where
             friends = DM.elems $ DM.findWithDefault DM.empty "friend" objectMap
             friendsOf = DM.elems $ DM.findWithDefault DM.empty "friendof" objectMap
             groups = DM.elems $ DM.findWithDefault DM.empty "frgrp" objectMap
+instance ResponseTransformer ResponseData [ResponseData] where
+    transform (simpleMap, enumMap, objectMap) = makeResult friendsOf
+        where
+            friendsOf = DM.elems $ DM.findWithDefault DM.empty "friendof" objectMap
 
 getFriends :: Session -> String -> Bool -> Bool -> Bool -> Maybe Int -> IOResult LJFriendsResponse
 getFriends session username incFriendOf incGroups incBdays limit = 
@@ -73,5 +80,19 @@ getFriends session username incFriendOf incGroups incBdays limit =
             `mplus` makeBoolArr incBdays ("includebdays","1")
             `mplus` makeBoolArr incGroups ("includegroups","1")
             `mplus` makeBoolArr incFriendOf ("includefriendof","1")
+            `mplus` makePairFromMaybe "friendlimit" limit
         makeBoolArr True item = [item]
         makeBoolArr _ _ = []
+
+makePairFromMaybe :: (Show a) => String -> Maybe a -> [( String, String )]
+makePairFromMaybe paramName Nothing = []
+makePairFromMaybe paramName (Just val) = [(paramName, show val)]
+
+getFriendsOf :: Session -> String -> Maybe Int -> IOResult [ResponseData]
+getFriendsOf session username limit = 
+    runRequestSession session request (CRP friendObjectFactory friendObjectUpdater)
+    where 
+        request = Request . makeRequestParams $ [
+            ("mode", "friendof"),
+            ("user", username)] ++
+            makePairFromMaybe "friendoflimit" limit
