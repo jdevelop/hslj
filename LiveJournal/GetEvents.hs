@@ -26,31 +26,6 @@ import Control.Monad
 import Codec.Binary.Url as U
 import Codec.Binary.UTF8.String as SU
 
-data SelectType = Day { year, month, day :: Int } |
-                  Sync { lastSync :: String } |
-                  LastN { howMany :: Int, 
-                          beforeDate :: Maybe String } |
-                  One { itemId :: String }
-
-data LJLineEndings = Unix | PC | Mac | Space | Dots deriving ( Show, Eq, Ord, Enum, Bounded, Ix )
-lineEndingMapping = listArray ( minBound, maxBound ) ["unix", "pc", "mac", "space", "dots"] :: Array LJLineEndings String
-
-data LJEventSecurity = Public | Private | UserMask { userMask :: Int } deriving ( Show )
-
-data LJEventProperty = EventProperty { eventPropName, eventPropValue :: String } deriving ( Show )
-
-data LJEvent = Event {  eventId :: String, 
-                        eventTime :: DateTime,
-                        eventText :: String,
-                        eventSecurity :: LJEventSecurity,
-                        eventSubject :: String,
-                        eventPoster :: String,
-                        eventANum :: String,
-                        eventUrl :: String, 
-                        eventProperties :: [LJEventProperty]
-                      } |
-                PropertyContainer { pItemId, pName, pValue :: String } deriving ( Show )
-
 epoch = fromSeconds 0
 
 eventObjectFactory :: ObjectFactory LJEvent

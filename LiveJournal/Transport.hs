@@ -79,8 +79,8 @@ prepareChallenge password =
     where
         request = makeRequest [("mode","getchallenge")]
         noFactory :: String -> Maybe ( ChalString String )
-        noFactory = \_ -> Nothing
-        noUpdate = \_ _ _ _ -> Nothing
+        noFactory _ = Nothing
+        noUpdate _ _ _ _ = Nothing
         makeChallengePair Nothing = Nothing
         makeChallengePair (Just chal) = Just ( chal, hashcode chal )
         md5Pass = MD5.md5sum $ BStr.pack password
